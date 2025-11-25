@@ -7,32 +7,28 @@ from dotenv import load_dotenv
 
 
 def create_app() -> Flask:
-    # Load environment variables from .env
     load_dotenv()
 
     app = Flask(__name__)
 
-    # Basic config
     app.config["SECRET_KEY"] = os.getenv("SECRET_KEY", "dev-secret")
 
-    # Frontend origin(s)
-    cors_origins = os.getenv("CORS_ORIGINS", "http://localhost:5173")
+    cors_origins = os.getenv("CORS_ORIGINS", "http://localhost:5173,http://localhost:5174")
     origins_list = [o.strip() for o in cors_origins.split(",") if o.strip()]
 
-    # Enable CORS for API + Socket.IO
     CORS(
         app,
         resources={r"/*": {"origins": origins_list}},
         supports_credentials=True,
+        allow_headers=["Content-Type", "Authorization"],
+        methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+        expose_headers=["Content-Type"],
     )
 
-    # Socket.IO setup
     socketio = SocketIO(
         app,
         cors_allowed_origins=origins_list,
     )
-
-    # ---------- Health + root routes ----------
 
     @app.route("/")
     def index():
@@ -42,30 +38,19 @@ def create_app() -> Flask:
     def health():
         return {"status": "ok"}
 
-    # ---------- Register API blueprints here ----------
-
     try:
-        # Protected /api/user/me endpoint (uses Cognito token validation)
-        from app.api.user_routes import bp as user_bp
+        from app.api.auth_routes import bp as auth_bp
+        app.register_blueprint(auth_bp)
+        print("✓ Registered auth_routes")
+    except Exception as e:
+        print(f"⚠ Warning: Could not load auth_routes: {e}")
+        print("   Make sure boto3 is installed: pip install boto3")
+        print("   And AWS credentials are configured")
 
-        app.register_blueprint(user_bp)
-    except ModuleNotFoundError:
-        # It's okay if this doesn't exist yet while you're still wiring things
-        pass
-
-    # TODO: later
-    # from app.api.auction_routes import bp as auction_bp
-    # app.register_blueprint(auction_bp)
-    #
-    # from app.sockets.bidding import socketio_ns as bidding_ns
-    # socketio.on_namespace(bidding_ns)
-
-    # Attach socketio instance for external access (e.g. from sockets modules)
     app.socketio = socketio
     return app
 
 
-# Create app + socketio for `python application.py` and for imports
 app = create_app()
 socketio = app.socketio
 

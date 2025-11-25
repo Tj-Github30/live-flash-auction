@@ -1,6 +1,5 @@
-// src/App.tsx
-import React, { useState } from "react";
-import { Routes, Route, Navigate } from "react-router-dom";
+import React, { useState, useEffect } from "react";
+import { Routes, Route, Navigate, useNavigate } from "react-router-dom";
 import { Header } from "./components/Header";
 import { SecondaryNav } from "./components/SecondaryNav";
 import { BuyPage, mockAuctions } from "./components/BuyPage";
@@ -10,7 +9,6 @@ import { AuthPage } from "./components/AuthPage";
 import { RequireAuth } from "./auth/RequireAuth";
 import { useAuth } from "./auth/AuthProvider";
 
-// Extended auction data with full details
 const auctionDetailsMap: Record<string, AuctionData> = {
   "1": {
     id: "1",
@@ -40,7 +38,7 @@ const auctionDetailsMap: Record<string, AuctionData> = {
     timeRemaining: mockAuctions[1].timeRemaining,
     viewers: mockAuctions[1].viewers,
     description:
-      "A stunning contemporary abstract oil painting by an emerging artist. This piece showcases vibrant colors and dynamic brushwork, measuring 48\" x 36\". The artwork has been featured in several gallery exhibitions and comes with a certificate of authenticity.",
+      'A stunning contemporary abstract oil painting by an emerging artist. This piece showcases vibrant colors and dynamic brushwork, measuring 48" x 36". The artwork has been featured in several gallery exhibitions and comes with a certificate of authenticity.',
     category: "Contemporary Art",
     condition: "New",
     year: "2024",
@@ -174,7 +172,6 @@ const auctionDetailsMap: Record<string, AuctionData> = {
   },
 };
 
-// ---------- Protected shell (your original "authenticated" app) ----------
 const ProtectedAppShell: React.FC = () => {
   const { logout } = useAuth();
 
@@ -189,7 +186,6 @@ const ProtectedAppShell: React.FC = () => {
     setSelectedAuctionId(null);
   };
 
-  // Show auction room if an auction is selected
   if (selectedAuctionId && auctionDetailsMap[selectedAuctionId]) {
     return (
       <div className="min-h-screen bg-background">
@@ -202,7 +198,6 @@ const ProtectedAppShell: React.FC = () => {
     );
   }
 
-  // Default main layout
   return (
     <div className="min-h-screen bg-background">
       <Header onLogout={logout} />
@@ -226,7 +221,6 @@ const ProtectedAppShell: React.FC = () => {
         </div>
       )}
 
-      {/* Footer */}
       <footer className="border-t border-border mt-16">
         <div className="max-w-[1600px] mx-auto px-6 py-8">
           <div className="flex items-center justify-between">
@@ -260,33 +254,39 @@ const ProtectedAppShell: React.FC = () => {
   );
 };
 
-// ---------- Login page: uses your AuthPage + Cognito login() ----------
 const LoginPage: React.FC = () => {
-  const { login } = useAuth();
-  // AuthPage already expects onAuthenticated; now it will call Cognito login
-  return <AuthPage onAuthenticated={login} />;
+  const navigate = useNavigate();
+  
+  const handleAuthenticated = () => {
+    navigate("/", { replace: true });
+  };
+  
+  return <AuthPage onAuthenticated={handleAuthenticated} />;
 };
 
-// ---------- Callback page after Cognito redirects back ----------
 const LoginCallbackPage: React.FC = () => {
-  // AuthProvider already reads the hash and stores tokens.
-  // We can just show a small message; the user can be sent to "/".
+  const { isAuthenticated } = useAuth();
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    if (isAuthenticated) {
+      navigate("/", { replace: true });
+    }
+  }, [isAuthenticated, navigate]);
+
   return (
     <div className="min-h-screen flex items-center justify-center">
-      <p>Finishing login… you can close this tab if it takes too long.</p>
+      <p>Finishing login…</p>
     </div>
   );
 };
 
-// ---------- Top-level App with routes + protection ----------
 const App: React.FC = () => {
   return (
     <Routes>
-      {/* Public routes */}
       <Route path="/login" element={<LoginPage />} />
       <Route path="/login/callback" element={<LoginCallbackPage />} />
 
-      {/* Protected main app */}
       <Route
         path="/"
         element={
@@ -296,7 +296,6 @@ const App: React.FC = () => {
         }
       />
 
-      {/* Catch-all */}
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );
