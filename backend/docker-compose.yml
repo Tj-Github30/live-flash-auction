@@ -1,0 +1,148 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: auction_postgres
+    environment:
+      POSTGRES_DB: live_auction
+      POSTGRES_USER: auction_user
+      POSTGRES_PASSWORD: auction_pass
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./scripts/init-db.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U auction_user -d live_auction"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redis
+  redis:
+    image: redis:7-alpine
+    container_name: auction_redis
+    command: redis-server --appendonly yes
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  # LocalStack (for local AWS services simulation)
+  localstack:
+    image: localstack/localstack:latest
+    container_name: auction_localstack
+    ports:
+      - "4566:4566"  # LocalStack gateway
+      - "4510-4559:4510-4559"  # External services port range
+    environment:
+      - SERVICES=sqs,dynamodb,ivs,sns
+      - DEBUG=1
+      - DATA_DIR=/tmp/localstack/data
+      - DOCKER_HOST=unix:///var/run/docker.sock
+    volumes:
+      - localstack_data:/tmp/localstack
+      - "/var/run/docker.sock:/var/run/docker.sock"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4566/_localstack/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Auction Management Service
+  auction-management:
+    build:
+      context: ./auction-management-service
+      dockerfile: Dockerfile
+    container_name: auction_management
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      localstack:
+        condition: service_healthy
+    volumes:
+      - ./auction-management-service:/app
+      - ./shared:/app/shared
+    command: flask run --host=0.0.0.0 --port=8000 --reload
+
+  # WebSocket Service
+  websocket:
+    build:
+      context: ./websocket-service
+      dockerfile: Dockerfile
+    container_name: auction_websocket
+    ports:
+      - "8001:8001"
+    env_file:
+      - .env
+    depends_on:
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./websocket-service:/app
+      - ./shared:/app/shared
+    command: python app/main.py
+
+  # Bid Processing Service
+  bid-processing:
+    build:
+      context: ./bid-processing-service
+      dockerfile: Dockerfile
+    container_name: auction_bid_processing
+    ports:
+      - "8002:8002"
+    env_file:
+      - .env
+    depends_on:
+      redis:
+        condition: service_healthy
+      localstack:
+        condition: service_healthy
+    volumes:
+      - ./bid-processing-service:/app
+      - ./shared:/app/shared
+    command: flask run --host=0.0.0.0 --port=8002 --reload
+
+  # Timer Service
+  timer:
+    build:
+      context: ./timer-service
+      dockerfile: Dockerfile
+    container_name: auction_timer
+    ports:
+      - "8003:8003"
+    env_file:
+      - .env
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      localstack:
+        condition: service_healthy
+    volumes:
+      - ./timer-service:/app
+      - ./shared:/app/shared
+    command: python app/main.py
+
+volumes:
+  postgres_data:
+  redis_data:
+  localstack_data:
+
+networks:
+  default:
+    name: auction_network
