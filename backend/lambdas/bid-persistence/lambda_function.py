@@ -84,8 +84,6 @@ def persist_bid(bid_data: dict) -> bool:
             "username": bid_data["username"],
             "amount": Decimal(str(bid_data["amount"])),
             "timestamp": bid_data["timestamp"],
-            "is_winning": bid_data.get("is_winning", False),
-            "is_highest": bid_data.get("is_highest", False),
             "ttl_expiry": ttl_expiry
         }
 
