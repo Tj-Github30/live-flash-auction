@@ -5,14 +5,30 @@
 4. Phase 4: RDS PostgreSQL - DONE 🟩
 5. Phase 5: ElastiCache Redis - DONE 🟩
 6. Phase 6: DynamoDB - DONE 🟩
-7. Phase 7: SQS Queues
-8. Phase 8: Lambda Functions
+7. Phase 7: SQS Queues - DONE 🟩
+8. Phase 8: Lambda Functions- DONE 🟩
 9. Phase 9: Initialize Database - DONE 🟩
 10. Phase 10: EKS Cluster
 11. Phase 11: Backend Services
 12. Phase 12: Update Frontend with backend url
 13. Phase 13: Testing 
 14. Phase 14 : IVS
+
+## 📊 Data Storage Architecture
+
+**Important: Where Data is Stored**
+
+| Data Type | Storage Location | How It's Created |
+|-----------|-----------------|------------------|
+| **Users** | PostgreSQL (RDS) - `users` table | ✅ **Automatically synced** from Cognito when user signs up/logs in |
+| **Auctions** | PostgreSQL (RDS) - `auctions` table | Created via API when user creates an auction |
+| **Bid History** | DynamoDB - `bids_history` table | Created when users place bids (via Lambda) |
+
+**Key Points:**
+- ✅ **Users are automatically synced** from Cognito to PostgreSQL - no manual creation needed
+- ✅ DynamoDB is **ONLY for bid history**, not for users
+- ✅ User sync happens automatically in the backend after signup/login
+- ✅ The `user_id` in PostgreSQL matches the Cognito `sub` (UUID)
 
 # Details
 
@@ -105,6 +121,13 @@
    - ☑️ Check "Password is permanent"
 
 ✅ **Cognito Complete! Cost: $0 (FREE)**
+
+**📌 Important Note: Automatic User Sync to PostgreSQL**
+- When users sign up or log in via Cognito, they are **automatically synced** to PostgreSQL (RDS)
+- The backend extracts user info from Cognito JWT tokens and creates/updates users in the `users` table
+- **No manual user creation needed** in the database - it happens automatically after authentication
+- User data is stored in **PostgreSQL (RDS)**, not in DynamoDB
+- See Phase 9 for database initialization details
 
 ---
 
@@ -463,6 +486,12 @@ aws s3 sync dist/ s3://live-auction-demo-yourname/ --delete
 
 ## Phase 6: DynamoDB (FREE TIER) - 10 minutes
 
+**📌 Important: DynamoDB is ONLY for Bid History**
+- This table stores **bid history** (bids placed on auctions)
+- **Users are NOT stored in DynamoDB** - they are stored in PostgreSQL (RDS)
+- Users are automatically synced from Cognito to PostgreSQL when they signup/login
+- See Phase 9 for PostgreSQL database setup
+
 ### Step 6.1: Create Bids Table
 
 1. **AWS Console** → Search **"DynamoDB"** → **"DynamoDB"**
@@ -509,6 +538,11 @@ aws s3 sync dist/ s3://live-auction-demo-yourname/ --delete
 5. Click **"Enable TTL"**
 
 ✅ **DynamoDB Complete! Cost: $0 (FREE TIER: 25 GB, 25 RCU, 25 WCU)**
+
+**📌 Reminder:**
+- DynamoDB table `bids_history` is **only for bid records**
+- Users are stored in **PostgreSQL (RDS)** - see Phase 9
+- Users are automatically synced from Cognito to PostgreSQL (no manual creation needed)
 
 -----
 
@@ -722,6 +756,12 @@ ls -lh notifications-lambda.zip
 
 ### Step 9.2: Initialize Database
 
+**📌 Important: User Data Storage**
+- **Users table** is created in PostgreSQL (RDS) during initialization
+- **Users are automatically synced** from Cognito to PostgreSQL when they signup/login
+- **No manual user creation needed** - the backend handles this automatically
+- The `user_id` in PostgreSQL matches the Cognito `sub` (UUID)
+
 1. **Get EC2 Public IP:**
    - EC2 → Instances → Select `temp-db-init`
    - Copy **Public IPv4 address**
@@ -802,6 +842,27 @@ ls -lh notifications-lambda.zip
    - EC2 Console → Select instance → **Instance state** → **Terminate instance**
 
 ✅ **Database Initialized!**
+
+**📌 How Users Are Added to the Database:**
+
+Users are **automatically synced** from Cognito to PostgreSQL when they:
+1. **Sign up** via the frontend → Cognito creates user → Backend syncs to PostgreSQL
+2. **Log in** via the frontend → Backend syncs user info to PostgreSQL (if not already present)
+
+**The sync process:**
+- User signs up/logs in through Cognito (OTP flow)
+- Backend receives JWT tokens from Cognito
+- Backend extracts user info from ID token (`sub`, `email`, `name`, etc.)
+- Backend calls `user_service.get_or_create_user_from_cognito()` 
+- User is created/updated in PostgreSQL `users` table automatically
+- `user_id` in PostgreSQL = Cognito `sub` (UUID)
+
+**You don't need to:**
+- ❌ Manually create users in PostgreSQL
+- ❌ Run SQL INSERT statements for users
+- ❌ Sync users via scripts
+
+**The backend handles everything automatically!** ✅
 
 ---
 
