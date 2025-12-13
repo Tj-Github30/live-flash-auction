@@ -3,11 +3,11 @@ Auction Management API Routes
 """
 from flask import Blueprint, request, jsonify
 from pydantic import ValidationError
-from auth.cognito import require_auth
-from schemas.auction_schemas import AuctionCreateRequest, AuctionCreateResponse, AuctionResponse
-from services.auction_service import AuctionService
-from utils.errors import AuctionError
-from utils.logger import setup_logger
+from shared.auth.cognito import require_auth
+from shared.schemas.auction_schemas import AuctionCreateRequest, AuctionCreateResponse, AuctionResponse
+from app.services.auction_service import AuctionService
+from shared.utils.errors import AuctionError
+from shared.utils.logger import setup_logger
 
 bp = Blueprint("auctions", __name__, url_prefix="/auctions")
 logger = setup_logger("auction-routes")

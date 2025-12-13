@@ -7,7 +7,7 @@ from jwt.algorithms import RSAAlgorithm
 from functools import wraps
 from flask import request, jsonify
 from typing import Optional, Dict
-from config.settings import settings
+from shared.config import settings
 import logging
 
 logger = logging.getLogger(__name__)
@@ -20,7 +20,8 @@ class CognitoAuth:
         self.region = settings.COGNITO_REGION
         self.user_pool_id = settings.COGNITO_USER_POOL_ID
         self.app_client_id = settings.COGNITO_APP_CLIENT_ID
-        self.issuer = settings.COGNITO_ISSUER
+        # Use auto-generated issuer URL if COGNITO_ISSUER is not set
+        self.issuer = settings.COGNITO_ISSUER or settings.cognito_issuer_url
         self.jwks_url = f"https://cognito-idp.{self.region}.amazonaws.com/{self.user_pool_id}/.well-known/jwks.json"
         self._jwks_client = None
 
@@ -114,12 +115,14 @@ cognito_auth = CognitoAuth()
 def require_auth(f):
     """
     Decorator to require authentication on Flask routes
+    Automatically syncs users from Cognito to PostgreSQL on first authentication
 
     Usage:
         @app.route('/protected')
         @require_auth
         def protected_route():
             user_info = request.user_info
+            user = request.user  # PostgreSQL User model instance
             return jsonify(user_info)
     """
     @wraps(f)
@@ -142,9 +145,27 @@ def require_auth(f):
         if not claims:
             return jsonify({"error": "Invalid or expired token"}), 401
 
-        # Attach user info to request
-        request.user_info = cognito_auth.extract_user_info(claims)
-        request.user_id = request.user_info["user_id"]
+        # Extract user info from token
+        user_info = cognito_auth.extract_user_info(claims)
+        
+        # Sync user from Cognito to PostgreSQL (create if doesn't exist)
+        try:
+            # Import here to avoid circular dependencies at module level
+            from ..services.user_service import user_service
+            user = user_service.get_or_create_user_from_cognito(user_info)
+            
+            if not user:
+                logger.error(f"Failed to sync user {user_info.get('user_id')} from Cognito")
+                return jsonify({"error": "Failed to sync user account"}), 500
+            
+            # Attach user info and PostgreSQL user to request
+            request.user_info = user_info
+            request.user_id = user_info["user_id"]
+            request.user = user  # PostgreSQL User model instance
+            
+        except Exception as e:
+            logger.error(f"Error syncing user from Cognito: {e}", exc_info=True)
+            return jsonify({"error": "Failed to sync user account"}), 500
 
         return f(*args, **kwargs)
 

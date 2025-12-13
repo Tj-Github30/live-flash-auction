@@ -1,12 +1,27 @@
 """
 Auction Management Service - Main Flask Application
 """
+import sys
+import os
+
+# Add shared directory to Python path
+# This ensures 'shared' module can be imported
+current_dir = os.path.dirname(os.path.abspath(__file__))  # app/
+service_dir = os.path.dirname(current_dir)  # auction-management-service/
+backend_dir = os.path.dirname(service_dir)  # backend/
+shared_dir = os.path.join(backend_dir, 'shared')
+
+if os.path.exists(shared_dir) and shared_dir not in sys.path:
+    sys.path.insert(0, shared_dir)
+if backend_dir not in sys.path:
+    sys.path.insert(0, backend_dir)
+
 from flask import Flask
 from flask_cors import CORS
-from config.settings import settings
-from utils.errors import register_error_handlers
-from utils.logger import setup_logger
-from api import auction_routes
+from shared.config import settings
+from shared.utils.errors import register_error_handlers
+from shared.utils.logger import setup_logger
+from app.api import auction_routes, auth_routes
 
 
 def create_app() -> Flask:
@@ -25,6 +40,7 @@ def create_app() -> Flask:
 
     # Register blueprints
     app.register_blueprint(auction_routes.bp)
+    app.register_blueprint(auth_routes.bp)
 
     # Health check endpoint
     @app.route("/health", methods=["GET"])

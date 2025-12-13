@@ -2,18 +2,17 @@
 Auction model
 """
 from sqlalchemy import Column, String, Text, Integer, DECIMAL, DateTime, ForeignKey
-from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
 import uuid
-from database.connection import Base
+from database.connection import Base, GUID
 
 
 class Auction(Base):
     __tablename__ = "auctions"
 
-    auction_id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    host_user_id = Column(UUID(as_uuid=True), ForeignKey("users.user_id", ondelete="CASCADE"), nullable=False, index=True)
+    auction_id = Column(GUID(), primary_key=True, default=uuid.uuid4)
+    host_user_id = Column(GUID(), ForeignKey("users.user_id", ondelete="CASCADE"), nullable=False, index=True)
     title = Column(String(500), nullable=False)
     description = Column(Text)
     duration = Column(Integer, nullable=False)  # in seconds
@@ -21,7 +20,7 @@ class Auction(Base):
     starting_bid = Column(DECIMAL(10, 2), nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     status = Column(String(20), default="live", index=True)  # 'live' or 'closed'
-    winner_id = Column(UUID(as_uuid=True), ForeignKey("users.user_id"))
+    winner_id = Column(GUID(), ForeignKey("users.user_id"))
     winning_bid = Column(DECIMAL(10, 2))
     ended_at = Column(DateTime(timezone=True))
     ivs_channel_arn = Column(String(255))

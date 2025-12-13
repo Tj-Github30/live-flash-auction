@@ -181,21 +181,22 @@ export function AuthPage({ onAuthenticated }: AuthPageProps) {
         throw new Error(data.error || "Invalid OTP");
       }
 
-      setSignupSuccess(true);
-      setIsLoading(false);
+      // Store tokens in localStorage (same as login flow)
+      localStorage.setItem(
+        "auction_auth_tokens",
+        JSON.stringify({
+          idToken: data.idToken,
+          accessToken: data.accessToken,
+          expiresAt: Math.floor(Date.now() / 1000) + data.expiresIn,
+        })
+      );
+
+      refreshTokens();
       
+      // Navigate to home page instead of showing success message
       setTimeout(() => {
-        setSignupSuccess(false);
-        setAuthMode("login");
-        setSignupStep("name");
-        setLoginStep("input");
-        setEmail("");
-        setOtp("");
-        setAuthSession("");
-        setFirstName("");
-        setLastName("");
-        setError("");
-      }, 2000);
+        navigate("/", { replace: true });
+      }, 100);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Invalid OTP");
       console.error("Signup OTP verification error:", err);
