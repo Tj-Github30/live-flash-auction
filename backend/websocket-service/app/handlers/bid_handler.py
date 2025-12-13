@@ -23,7 +23,7 @@ class BidHandler:
             bid_data: Bid event data from Redis
         """
         try:
-            from redis.client import RedisHelper
+            from redis_client.client import RedisHelper
 
             redis_helper = RedisHelper()
 

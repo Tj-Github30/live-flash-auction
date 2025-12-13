@@ -3,8 +3,50 @@ Logging configuration for all services
 """
 import logging
 import sys
-from pythonjsonlogger import jsonlogger
-from config.settings import settings
+import json
+from datetime import datetime
+from typing import Optional, Dict, Any
+from shared.config import settings
+
+
+class JSONFormatter(logging.Formatter):
+    """
+    Custom JSON formatter for structured logging
+    Uses Python's built-in json module - no external dependencies
+    """
+    
+    def format(self, record: logging.LogRecord) -> str:
+        """Format log record as JSON"""
+        log_data: Dict[str, Any] = {
+            "timestamp": datetime.utcnow().isoformat() + "Z",
+            "level": record.levelname,
+            "logger": record.name,
+            "message": record.getMessage(),
+        }
+        
+        # Add extra fields if present
+        if hasattr(record, 'method'):
+            log_data["method"] = record.method
+        if hasattr(record, 'path'):
+            log_data["path"] = record.path
+        if hasattr(record, 'user_id'):
+            log_data["user_id"] = record.user_id
+        if hasattr(record, 'status_code'):
+            log_data["status_code"] = record.status_code
+        if hasattr(record, 'duration_ms'):
+            log_data["duration_ms"] = record.duration_ms
+        if hasattr(record, 'error_type'):
+            log_data["error_type"] = record.error_type
+        if hasattr(record, 'error_message'):
+            log_data["error_message"] = record.error_message
+        if hasattr(record, 'context'):
+            log_data["context"] = record.context
+        
+        # Add exception info if present
+        if record.exc_info:
+            log_data["exception"] = self.formatException(record.exc_info)
+        
+        return json.dumps(log_data)
 
 
 def setup_logger(service_name: str) -> logging.Logger:
@@ -27,12 +69,9 @@ def setup_logger(service_name: str) -> logging.Logger:
     handler = logging.StreamHandler(sys.stdout)
     handler.setLevel(getattr(logging, settings.LOG_LEVEL.upper()))
 
-    # Use JSON formatter for production
+    # Use JSON formatter for production, regular formatter for development
     if settings.FLASK_ENV == "production":
-        formatter = jsonlogger.JsonFormatter(
-            "%(timestamp)s %(level)s %(name)s %(message)s",
-            rename_fields={"levelname": "level", "name": "logger"}
-        )
+        formatter = JSONFormatter()
     else:
         # Use regular formatter for development
         formatter = logging.Formatter(

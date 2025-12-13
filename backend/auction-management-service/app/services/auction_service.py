@@ -4,15 +4,15 @@ Auction Service - Business logic for auction management
 from typing import Dict, List, Optional
 from decimal import Decimal
 from sqlalchemy.orm import Session
-from database.connection import SessionLocal
-from models.auction import Auction
-from models.user import User
-from redis.client import RedisHelper, RedisKeys
-from aws.ivs_client import ivs_client
-from schemas.auction_schemas import AuctionCreateRequest
-from utils.errors import AuctionNotFoundError, ForbiddenError
-from utils.helpers import get_current_timestamp_ms, calculate_time_remaining, parse_decimal
-from config.settings import settings
+from shared.database.connection import SessionLocal
+from shared.models.auction import Auction
+from shared.models.user import User
+from shared.redis_client.client import RedisHelper, RedisKeys
+from shared.aws.ivs_client import ivs_client
+from shared.schemas.auction_schemas import AuctionCreateRequest
+from shared.utils.errors import AuctionNotFoundError, ForbiddenError
+from shared.utils.helpers import get_current_timestamp_ms, calculate_time_remaining, parse_decimal
+from shared.config import settings
 import logging
 
 logger = logging.getLogger(__name__)

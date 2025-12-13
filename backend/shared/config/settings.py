@@ -41,6 +41,13 @@ class Settings(BaseSettings):
     COGNITO_REGION: str = "us-east-1"
     COGNITO_ISSUER: str = ""
 
+    @property
+    def cognito_issuer_url(self) -> str:
+        """Generate Cognito issuer URL from user pool ID and region"""
+        if self.COGNITO_USER_POOL_ID:
+            return f"https://cognito-idp.{self.COGNITO_REGION}.amazonaws.com/{self.COGNITO_USER_POOL_ID}"
+        return self.COGNITO_ISSUER if self.COGNITO_ISSUER else ""
+
     # Service URLs
     AUCTION_MANAGEMENT_URL: str = "http://localhost:8000"
     WEBSOCKET_SERVICE_URL: str = "http://localhost:8001"
@@ -84,6 +91,7 @@ class Settings(BaseSettings):
     class Config:
         env_file = ".env"
         case_sensitive = True
+        extra = "ignore"  # Ignore extra fields from .env file
 
     @property
     def cors_origins_list(self) -> List[str]:

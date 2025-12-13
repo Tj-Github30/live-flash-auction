@@ -4,7 +4,7 @@ AWS IVS (Interactive Video Service) client for live streaming
 import boto3
 import logging
 from typing import Dict, Optional
-from config.settings import settings
+from shared.config import settings
 
 logger = logging.getLogger(__name__)
 
