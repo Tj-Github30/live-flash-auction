@@ -1,1 +1,6 @@
-Requirement already satisfied: python-json-logger in /Users/tejaswinisrivastava/Desktop/Sem 3/Cloud Computing/Project/live-flash-auction/backend/venv/lib/python3.12/site-packages (2.0.7)
+# Auction Management Service Dependencies
+-r ../shared/requirements.txt
+
+flask-cors==4.0.0
+flask-restful==0.3.10
+gunicorn==21.2.0

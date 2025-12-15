@@ -5,7 +5,7 @@ import redis
 from redis.connection import ConnectionPool
 from typing import Optional
 import json
-from config.settings import settings
+from shared.config.settings import settings
 
 
 class RedisClient:
@@ -16,12 +16,17 @@ class RedisClient:
 
     @classmethod
     def get_pool(cls) -> ConnectionPool:
-        """Get or create Redis connection pool"""
+        """Get or create Redis connection pool with timeouts and health checks"""
         if cls._pool is None:
             cls._pool = ConnectionPool.from_url(
                 settings.REDIS_URL,
                 max_connections=settings.REDIS_MAX_CONNECTIONS,
-                decode_responses=True
+                decode_responses=True,
+                socket_timeout=settings.REDIS_SOCKET_TIMEOUT,
+                socket_connect_timeout=settings.REDIS_SOCKET_CONNECT_TIMEOUT,
+                socket_keepalive=settings.REDIS_SOCKET_KEEPALIVE,
+                health_check_interval=settings.REDIS_HEALTH_CHECK_INTERVAL,
+                retry_on_timeout=settings.REDIS_RETRY_ON_TIMEOUT
             )
         return cls._pool
 
@@ -31,6 +36,46 @@ class RedisClient:
         if cls._client is None:
             cls._client = redis.Redis(connection_pool=cls.get_pool())
         return cls._client
+
+    @classmethod
+    def get_pubsub_client(cls, socket_timeout: int = None) -> redis.Redis:
+        """
+        Get a dedicated Redis client for pub/sub operations
+
+        Note: Uses a separate client instance instead of the shared pool
+        to avoid connection conflicts with blocking pub/sub operations
+
+        Args:
+            socket_timeout: Optional custom timeout for this client
+
+        Returns:
+            Redis client configured for pub/sub
+        """
+        timeout = socket_timeout or settings.REDIS_SOCKET_TIMEOUT
+
+        return redis.Redis.from_url(
+            settings.REDIS_URL,
+            decode_responses=True,
+            socket_timeout=timeout,
+            socket_connect_timeout=settings.REDIS_SOCKET_CONNECT_TIMEOUT,
+            socket_keepalive=settings.REDIS_SOCKET_KEEPALIVE,
+            health_check_interval=settings.REDIS_HEALTH_CHECK_INTERVAL,
+            retry_on_timeout=settings.REDIS_RETRY_ON_TIMEOUT
+        )
+
+    @classmethod
+    def ping_redis(cls) -> bool:
+        """
+        Test Redis connectivity
+
+        Returns:
+            True if Redis is reachable, False otherwise
+        """
+        try:
+            client = cls.get_client()
+            return client.ping()
+        except Exception:
+            return False
 
     @classmethod
     def close(cls):

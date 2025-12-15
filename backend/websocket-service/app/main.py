@@ -1,14 +1,15 @@
 """
 WebSocket Service - Real-time bidding and chat
 """
-from flask import Flask, request
-from flask_socketio import SocketIO, emit, join_room, leave_room
-from flask_cors import CORS
 import eventlet
 eventlet.monkey_patch()
 
-from config.settings import settings
-from utils.logger import setup_logger
+from flask import Flask, request
+from flask_socketio import SocketIO, emit, join_room, leave_room
+from flask_cors import CORS
+
+from shared.config.settings import settings
+from shared.utils.logger import setup_logger
 from handlers.connection_handler import ConnectionHandler
 from handlers.chat_handler import ChatHandler
 from handlers.bid_handler import BidHandler
@@ -41,7 +42,32 @@ pubsub_service = PubSubService(socketio)
 
 @app.route("/health", methods=["GET"])
 def health():
-    return {"status": "healthy", "service": "websocket"}, 200
+    """Enhanced health check with component status"""
+    from shared.redis.client import RedisClient
+
+    redis_healthy = RedisClient.ping_redis()
+    pubsub_connected = pubsub_service.is_connected()
+
+    if not redis_healthy:
+        status = "degraded"
+        message = "Redis connection failed"
+    elif not pubsub_connected:
+        status = "degraded"
+        message = "PubSub not connected (may be retrying)"
+    else:
+        status = "healthy"
+        message = "All systems operational"
+
+    return {
+        "status": status,
+        "service": "websocket",
+        "message": message,
+        "components": {
+            "redis": "healthy" if redis_healthy else "unhealthy",
+            "pubsub": "connected" if pubsub_connected else "disconnected",
+            "socketio": "healthy"
+        }
+    }, 200
 
 
 @socketio.on("connect")
@@ -107,7 +133,30 @@ def handle_ping():
     emit("pong", {"timestamp": int(eventlet.time.time() * 1000)})
 
 
+def cleanup_on_exit():
+    """Cleanup resources on shutdown"""
+    logger.info("Shutting down WebSocket service...")
+    try:
+        pubsub_service.stop()
+    except Exception as e:
+        logger.error(f"Error during shutdown: {e}")
+    logger.info("WebSocket service shutdown complete")
+
+
+# Register cleanup handler
+import atexit
+atexit.register(cleanup_on_exit)
+
+
 if __name__ == "__main__":
     logger.info("WebSocket Service starting...")
-    pubsub_service.start()  # Start Redis pub/sub listener
+    logger.info(f"Environment: {settings.FLASK_ENV}")
+    logger.info(f"Redis URL: {settings.REDIS_URL}")
+    logger.info(f"CORS Origins: {settings.cors_origins_list}")
+
+    # Start PubSub service (non-blocking, retries in background)
+    pubsub_service.start()
+
+    # Start SocketIO server
+    logger.info("Starting SocketIO server on port 8001...")
     socketio.run(app, host="0.0.0.0", port=8001, debug=settings.FLASK_DEBUG)

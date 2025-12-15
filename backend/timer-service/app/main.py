@@ -6,8 +6,8 @@ from flask import Flask
 from flask_cors import CORS
 import threading
 import time
-from config.settings import settings
-from utils.logger import setup_logger
+from shared.config.settings import settings
+from shared.utils.logger import setup_logger
 from services.timer_manager import TimerManager
 
 logger = setup_logger("timer-service")

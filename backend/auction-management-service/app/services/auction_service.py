@@ -7,12 +7,12 @@ from sqlalchemy.orm import Session
 from shared.database.connection import SessionLocal
 from shared.models.auction import Auction
 from shared.models.user import User
-from shared.redis_client.client import RedisHelper, RedisKeys
+from shared.redis.client import RedisHelper, RedisKeys
 from shared.aws.ivs_client import ivs_client
 from shared.schemas.auction_schemas import AuctionCreateRequest
 from shared.utils.errors import AuctionNotFoundError, ForbiddenError
 from shared.utils.helpers import get_current_timestamp_ms, calculate_time_remaining, parse_decimal
-from shared.config import settings
+from shared.config.settings import settings
 import logging
 
 logger = logging.getLogger(__name__)

@@ -4,10 +4,10 @@ Handles bid validation, processing, and anti-snipe logic
 """
 from flask import Flask
 from flask_cors import CORS
-from config.settings import settings
-from utils.errors import register_error_handlers
-from utils.logger import setup_logger
-from api import bid_routes
+from shared.config.settings import settings
+from shared.utils.errors import register_error_handlers
+from shared.utils.logger import setup_logger
+from app.api import bid_routes
 
 
 def create_app() -> Flask:

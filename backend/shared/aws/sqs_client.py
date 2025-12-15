@@ -5,7 +5,7 @@ import boto3
 import json
 import logging
 from typing import Dict, Optional
-from config.settings import settings
+from shared.config.settings import settings
 
 logger = logging.getLogger(__name__)
 
