@@ -15,3 +15,5 @@ frontend/.env
 
 # OS
 .DS_Store
+
+auction-secrets.yaml

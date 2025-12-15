@@ -2,10 +2,10 @@
 WebSocket Connection Handler
 """
 from flask_socketio import join_room, leave_room, emit
-from auth.cognito import cognito_auth
-from redis_client.client import RedisHelper, RedisKeys
-from utils.helpers import get_current_timestamp_ms
-from utils.logger import setup_logger
+from shared.auth.cognito import cognito_auth
+from shared.redis.client import RedisHelper, RedisKeys
+from shared.utils.helpers import get_current_timestamp_ms
+from shared.utils.logger import setup_logger
 import json
 
 logger = setup_logger("connection-handler")

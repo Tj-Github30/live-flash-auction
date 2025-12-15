@@ -4,7 +4,7 @@ User model
 from sqlalchemy import Column, String, Boolean, DateTime
 from sqlalchemy.sql import func
 import uuid
-from database.connection import Base, GUID
+from shared.database.connection import Base, GUID
 
 
 class User(Base):

@@ -3,11 +3,11 @@ Bid Processing API Routes
 """
 from flask import Blueprint, request, jsonify
 from pydantic import ValidationError
-from auth.cognito import require_auth
-from schemas.bid_schemas import BidRequest, BidResponse
-from services.bid_service import BidService
-from utils.errors import AuctionError
-from utils.logger import setup_logger
+from shared.auth.cognito import require_auth
+from shared.schemas.bid_schemas import BidRequest, BidResponse
+from app.services.bid_service import BidService
+from shared.utils.errors import AuctionError
+from shared.utils.logger import setup_logger
 
 bp = Blueprint("bids", __name__, url_prefix="/internal/bids")
 logger = setup_logger("bid-routes")

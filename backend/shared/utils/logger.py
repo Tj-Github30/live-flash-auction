@@ -6,7 +6,7 @@ import sys
 import json
 from datetime import datetime
 from typing import Optional, Dict, Any
-from shared.config import settings
+from shared.config.settings import settings
 
 
 class JSONFormatter(logging.Formatter):
