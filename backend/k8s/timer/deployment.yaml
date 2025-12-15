@@ -16,7 +16,7 @@ spec:
     spec:
       containers:
       - name: timer
-        image: <YOUR_ECR_REPO>/timer-service:latest
+        image: 938041861431.dkr.ecr.us-east-1.amazonaws.com/live-auction/timer-service:latest
         ports:
         - containerPort: 8003
         env:

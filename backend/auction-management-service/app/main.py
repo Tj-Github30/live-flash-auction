@@ -18,7 +18,7 @@ if backend_dir not in sys.path:
 
 from flask import Flask
 from flask_cors import CORS
-from shared.config import settings
+from shared.config.settings import settings
 from shared.utils.errors import register_error_handlers
 from shared.utils.logger import setup_logger
 from app.api import auction_routes, auth_routes

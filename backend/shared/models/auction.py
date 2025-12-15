@@ -5,7 +5,7 @@ from sqlalchemy import Column, String, Text, Integer, DECIMAL, DateTime, Foreign
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
 import uuid
-from database.connection import Base, GUID
+from shared.database.connection import Base, GUID
 
 
 class Auction(Base):

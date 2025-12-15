@@ -1,7 +1,7 @@
 """
 Bid Event Handler (receives from Redis pub/sub)
 """
-from utils.logger import setup_logger
+from shared.utils.logger import setup_logger
 
 logger = setup_logger("bid-handler")
 

@@ -1,27 +1,25 @@
 FROM python:3.11-slim
 
-WORKDIR /app
+WORKDIR /app/backend
 
-# Install system dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy shared dependencies
-COPY ../shared /app/shared
+#    Result: /app/backend/shared
+#    Result: /app/backend/bid-processing-service
+COPY shared shared
+COPY bid-processing-service bid-processing-service
 
-# Copy service requirements and install
-COPY requirements.txt .
+# 4. Enter the service directory
+WORKDIR /app/backend/bid-processing-service
+
+
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy service code
-COPY . .
 
-# Set Python path to include shared modules
-ENV PYTHONPATH=/app:/app/shared:$PYTHONPATH
+ENV PYTHONPATH="/app/backend:/app/backend/shared:${PYTHONPATH}"
 
-# Expose port
 EXPOSE 8002
 
-# Run with gunicorn
 CMD ["gunicorn", "--bind", "0.0.0.0:8002", "--workers", "4", "--timeout", "60", "app.main:app"]

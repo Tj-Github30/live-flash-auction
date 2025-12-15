@@ -7,7 +7,7 @@ from jwt.algorithms import RSAAlgorithm
 from functools import wraps
 from flask import request, jsonify
 from typing import Optional, Dict
-from shared.config import settings
+from shared.config.settings import settings
 import logging
 
 logger = logging.getLogger(__name__)
