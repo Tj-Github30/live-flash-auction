@@ -18,6 +18,21 @@ class Settings(BaseSettings):
     REDIS_URL: str = "redis://localhost:6379/0"
     REDIS_MAX_CONNECTIONS: int = 50
 
+    # Redis Connection Timeouts
+    REDIS_SOCKET_TIMEOUT: int = 5
+    REDIS_SOCKET_CONNECT_TIMEOUT: int = 3
+    REDIS_SOCKET_KEEPALIVE: bool = True
+    REDIS_HEALTH_CHECK_INTERVAL: int = 30
+    REDIS_RETRY_ON_TIMEOUT: bool = True
+
+    # PubSub Retry Configuration
+    REDIS_PUBSUB_RETRY_ENABLED: bool = True
+    REDIS_PUBSUB_RETRY_MAX_ATTEMPTS: int = 10
+    REDIS_PUBSUB_RETRY_INITIAL_DELAY: int = 2
+    REDIS_PUBSUB_RETRY_MAX_DELAY: int = 60
+    REDIS_PUBSUB_RETRY_MULTIPLIER: float = 2.0
+
+
     # AWS
     AWS_REGION: str = "us-east-1"
     AWS_ACCESS_KEY_ID: str = ""

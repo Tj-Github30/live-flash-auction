@@ -16,7 +16,7 @@ spec:
     spec:
       containers:
       - name: bid-processing
-        image: <YOUR_ECR_REPO>/bid-processing-service:latest
+        image: 938041861431.dkr.ecr.us-east-1.amazonaws.com/live-auction/bid-processing-service:latest
         ports:
         - containerPort: 8002
         env:

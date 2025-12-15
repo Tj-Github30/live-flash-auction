@@ -5,12 +5,12 @@ import time
 import threading
 from typing import Dict, Set
 from decimal import Decimal
-from redis.client import RedisHelper, RedisKeys
-from database.connection import SessionLocal
-from models.auction import Auction
-from aws.sqs_client import sqs_client
-from utils.helpers import get_current_timestamp_ms, calculate_time_remaining
-from config.settings import settings
+from shared.redis.client import RedisHelper, RedisKeys
+from shared.database.connection import SessionLocal
+from shared.models.auction import Auction
+from shared.aws.sqs_client import sqs_client
+from shared.utils.helpers import get_current_timestamp_ms, calculate_time_remaining
+from shared.config.settings import settings
 import logging
 
 logger = logging.getLogger(__name__)

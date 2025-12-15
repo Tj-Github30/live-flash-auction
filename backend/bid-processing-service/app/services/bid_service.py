@@ -3,11 +3,11 @@ Bid Service - Core bid processing logic
 """
 from typing import Dict
 from decimal import Decimal
-from redis.client import RedisHelper, RedisKeys, BID_COMPARISON_SCRIPT
-from aws.sqs_client import sqs_client
-from utils.errors import AuctionNotFoundError, AuctionClosedError, InvalidBidError
-from utils.helpers import get_current_timestamp_ms, calculate_time_remaining
-from config.settings import settings
+from shared.redis.client import RedisHelper, RedisKeys, BID_COMPARISON_SCRIPT
+from shared.aws.sqs_client import sqs_client
+from shared.utils.errors import AuctionNotFoundError, AuctionClosedError, InvalidBidError
+from shared.utils.helpers import get_current_timestamp_ms, calculate_time_remaining
+from shared.config.settings import settings
 import logging
 import uuid
 
