@@ -1,0 +1,16 @@
+{
+  "include": [
+    "app",
+    "../shared"
+  ],
+  "exclude": [
+    "**/__pycache__",
+    "**/node_modules"
+  ],
+  "extraPaths": [
+    "../shared"
+  ],
+  "pythonVersion": "3.11",
+  "typeCheckingMode": "basic"
+}
+
