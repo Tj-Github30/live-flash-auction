@@ -17,3 +17,8 @@ frontend/.env
 .DS_Store
 
 auction-secrets.yaml
+EKS_deployment.md
+FRONTEND-DEPLOYMENT.md
+backend/k8s/README-HPA.md
+frontend/.env.bk
+frontend/package-lock.json
