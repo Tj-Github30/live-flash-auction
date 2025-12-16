@@ -11,6 +11,9 @@ service_dir = os.path.dirname(current_dir)  # auction-management-service/
 backend_dir = os.path.dirname(service_dir)  # backend/
 shared_dir = os.path.join(backend_dir, 'shared')
 
+# Add service directory to path so 'app' package can be imported
+if service_dir not in sys.path:
+    sys.path.insert(0, service_dir)
 if os.path.exists(shared_dir) and shared_dir not in sys.path:
     sys.path.insert(0, shared_dir)
 if backend_dir not in sys.path:
