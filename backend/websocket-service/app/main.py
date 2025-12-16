@@ -36,7 +36,7 @@ socketio = SocketIO(
 
 # Initialize handlers
 connection_handler = ConnectionHandler(socketio)
-chat_handler = ChatHandler(socketio)
+chat_handler = ChatHandler(socketio, connection_handler=connection_handler)
 bid_handler = BidHandler(socketio)
 pubsub_service = PubSubService(socketio)
 
