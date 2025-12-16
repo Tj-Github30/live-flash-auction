@@ -26,7 +26,7 @@ class CognitoAuthService:
         if settings.AWS_ACCESS_KEY_ID and settings.AWS_SECRET_ACCESS_KEY:
             client_kwargs['aws_access_key_id'] = settings.AWS_ACCESS_KEY_ID
             client_kwargs['aws_secret_access_key'] = settings.AWS_SECRET_ACCESS_KEY
-        
+
         self.client = boto3.client('cognito-idp', **client_kwargs)
         
         # Validate required settings
@@ -48,72 +48,45 @@ class CognitoAuthService:
         try:
             logger.info(f"Attempting signup for {email} with user pool {self.user_pool_id}")
             
-            # Check if user exists, create silently if not (matching GitHub implementation)
-            # Only do this if we have admin credentials
+            # Check if user exists, create silently if not (requires Cognito admin permissions)
             try:
-                if settings.AWS_ACCESS_KEY_ID and settings.AWS_SECRET_ACCESS_KEY:
-                    try:
-                        self.client.admin_get_user(
-                            UserPoolId=self.user_pool_id,
-                            Username=email,
-                        )
-                    except ClientError as e:
-                        error_code = e.response.get("Error", {}).get("Code")
-                        if error_code == "UserNotFoundException":
-                            # Create user silently with temporary password (matching GitHub code)
-                            import secrets
-                            import string
-                            uppercase = secrets.choice(string.ascii_uppercase)
-                            lowercase = secrets.choice(string.ascii_lowercase)
-                            digit = secrets.choice(string.digits)
-                            symbol = secrets.choice("!@#$%^&*()_+-=[]{}|;:,.<>?")
-                            remaining = ''.join(secrets.choice(string.ascii_letters + string.digits + "!@#$%^&*()_+-=[]{}|;:,.<>?") 
-                                               for _ in range(8))
-                            password_chars = list(uppercase + lowercase + digit + symbol + remaining)
-                            secrets.SystemRandom().shuffle(password_chars)
-                            temp_password = ''.join(password_chars).strip()
-                            
-                            self.client.admin_create_user(
-                                UserPoolId=self.user_pool_id,
-                                Username=email,
-                                UserAttributes=[
-                                    {"Name": "email", "Value": email},
-                                    {"Name": "email_verified", "Value": "false"},
-                                ],
-                                TemporaryPassword=temp_password,
-                                MessageAction="SUPPRESS",
-                                DesiredDeliveryMediums=["EMAIL"],
-                            )
-                            
-                            try:
-                                self.client.admin_set_user_password(
-                                    UserPoolId=self.user_pool_id,
-                                    Username=email,
-                                    Password=temp_password,
-                                    Permanent=True,
-                                )
-                                logger.info(f"Set permanent password for user: {email}")
-                            except ClientError as password_error:
-                                logger.warning(f"Could not set permanent password: {password_error}")
-                            
-                            logger.info(f"Created user silently: {email}")
-                            import time
-                            time.sleep(1.5)  # Brief delay to ensure user is ready
-                        else:
-                            raise
+                self.client.admin_get_user(
+                    UserPoolId=self.user_pool_id,
+                    Username=email,
+                )
+                logger.info(f"User already exists: {email}")
+            except ClientError as e:
+                error_code = e.response.get("Error", {}).get("Code")
+                if error_code == "UserNotFoundException":
+                    temp_password = self._generate_temp_password()
+                    self.client.admin_create_user(
+                        UserPoolId=self.user_pool_id,
+                        Username=email,
+                        UserAttributes=[
+                            {"Name": "email", "Value": email},
+                            # Keep false until OTP verification completes
+                            {"Name": "email_verified", "Value": "false"},
+                        ],
+                        TemporaryPassword=temp_password,
+                        MessageAction="SUPPRESS",
+                        DesiredDeliveryMediums=["EMAIL"],
+                    )
+
+                    # Make the password permanent so the user is active (admin-created users default to FORCE_CHANGE_PASSWORD)
+                    self.client.admin_set_user_password(
+                        UserPoolId=self.user_pool_id,
+                        Username=email,
+                        Password=temp_password,
+                        Permanent=True,
+                    )
+                    logger.info(f"Created user silently: {email}")
+
+                    import time
+                    time.sleep(1.5)  # brief delay to ensure user is ready
                 else:
-                    logger.info(f"Admin credentials not configured, skipping silent user creation for {email}")
-                    logger.info("User will be created through normal signup flow")
-            except Exception as admin_error:
-                # If admin operations fail (e.g., no credentials), log and continue
-                error_str = str(admin_error)
-                if "Unable to locate credentials" in error_str or "NoCredentialsError" in error_str or "CredentialsError" in error_str:
-                    logger.warning(f"AWS credentials not available. Skipping admin operations: {error_str}")
-                    logger.info("Will attempt to use public initiate_auth API only")
-                else:
-                    # Re-raise if it's a different error
+                    # If it's AccessDenied/etc, surface it so we don't silently proceed into confusing SELECT_CHALLENGE.
                     raise
-            
+
             # Now use public initiate_auth API (no credentials needed)
             try:
                 response = self.client.initiate_auth(
@@ -513,8 +486,8 @@ class CognitoAuthService:
             return None, error
         
         # If signup, confirm user and update attributes (requires admin credentials)
-        # But only if we have credentials configured
-        if settings.AWS_ACCESS_KEY_ID and settings.AWS_SECRET_ACCESS_KEY:
+        # Confirm and verify the user (requires Cognito admin permissions).
+        try:
             try:
                 self.client.admin_confirm_sign_up(
                     UserPoolId=self.user_pool_id,
@@ -532,11 +505,12 @@ class CognitoAuthService:
                 error_code = confirm_error.response.get("Error", {}).get("Code")
                 if error_code != "NotAuthorizedException":
                     logger.warning(f"Could not confirm user: {confirm_error}")
-        else:
-            logger.info(f"Admin credentials not configured, skipping user confirmation for {email}")
+        except Exception as e:
+            # If running without permissions/creds, don't fail signup verification; just log.
+            logger.info(f"Skipping user confirmation/verification update for {email}: {e}")
         
         # Update name attribute if provided (requires admin credentials)
-        if name and settings.AWS_ACCESS_KEY_ID and settings.AWS_SECRET_ACCESS_KEY:
+        if name:
             try:
                 self.client.admin_update_user_attributes(
                     UserPoolId=self.user_pool_id,
