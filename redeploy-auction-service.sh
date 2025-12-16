@@ -24,9 +24,9 @@ echo "Step 1: Logging into ECR..."
 aws ecr get-login-password --region ${AWS_REGION} | docker login --username AWS --password-stdin ${ECR_REGISTRY}
 
 echo ""
-echo "Step 2: Building Docker image for linux/amd64 platform..."
+echo "Step 2: Building Docker image for linux/amd64 platform (no cache)..."
 cd backend
-docker build --platform linux/amd64 -f auction-management-service/Dockerfile -t ${IMAGE_NAME} .
+docker build --platform linux/amd64 --no-cache -f auction-management-service/Dockerfile -t ${IMAGE_NAME} .
 
 echo ""
 echo "Step 3: Pushing image to ECR..."
