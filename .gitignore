@@ -3,6 +3,11 @@ backend/venv/
 __pycache__/
 *.pyc
 
+# Database files (test databases)
+*.db
+*.sqlite
+*.sqlite3
+
 # Node
 frontend/node_modules/
 dist/
