@@ -16,9 +16,12 @@ logger = setup_logger("chat-handler")
 class ChatHandler:
     """Handles chat messages"""
 
-    def __init__(self, socketio):
+    def __init__(self, socketio, connection_handler=None):
         self.socketio = socketio
         self.redis_helper = RedisHelper()
+        # Optional reference to ConnectionHandler so we can resolve user_id/username
+        # from the authenticated Socket.IO connection.
+        self.connection_handler = connection_handler
 
     def on_chat_message(self, connection_id: str, data: dict):
         """
@@ -29,13 +32,16 @@ class ChatHandler:
             data: {auction_id: str, message: str}
         """
         try:
-            from handlers.connection_handler import ConnectionHandler
-            # Get connection info (would need to access from connection_handler)
-            # For now, we'll require user_id and username in data
             auction_id = data.get("auction_id")
             message = data.get("message", "").strip()
             user_id = data.get("user_id")
             username = data.get("username")
+
+            # Prefer deriving identity from the authenticated connection (frontend doesn't need to send it)
+            if (not user_id or not username) and self.connection_handler is not None:
+                conn_info = getattr(self.connection_handler, "connections", {}).get(connection_id, {})
+                user_id = user_id or conn_info.get("user_id")
+                username = username or conn_info.get("username")
 
             if not all([auction_id, message, user_id, username]):
                 emit("error", {"message": "Missing required fields"})

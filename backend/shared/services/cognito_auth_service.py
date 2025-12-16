@@ -357,6 +357,11 @@ class CognitoAuthService:
                     if 'Attempt limit exceeded' in error_message or 'Too many attempts' in error_message:
                         return None, None, "Too many attempts. Please wait 15-30 minutes before trying again."
                     
+                    # Cognito can mask non-existent users (prevent user existence errors).
+                    # In that case we see SELECT_CHALLENGE but no valid choice like EMAIL_OTP.
+                    if 'selected challenge is not available' in str(error_message).lower():
+                        return None, None, 'User not registered. Please sign up first'
+
                     return None, None, f"Failed to select challenge: {error_message}"
             
             logger.info(f"OTP sent to {email}")

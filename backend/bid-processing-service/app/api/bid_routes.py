@@ -9,7 +9,7 @@ from app.services.bid_service import BidService
 from shared.utils.errors import AuctionError
 from shared.utils.logger import setup_logger
 
-bp = Blueprint("bids", __name__, url_prefix="/internal/bids")
+bp = Blueprint("bids", __name__, url_prefix="/api/bids")
 logger = setup_logger("bid-routes")
 bid_service = BidService()
 
@@ -20,7 +20,7 @@ def place_bid():
     """
     Place a bid on an auction
 
-    POST /internal/bids
+    POST /api/bids
     Body: {
         "auction_id": str,
         "amount": decimal

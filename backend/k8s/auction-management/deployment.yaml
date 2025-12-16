@@ -79,19 +79,3 @@ spec:
     port: 8000
     targetPort: 8000
   type: ClusterIP
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: auction-management-service-public
-  annotations:
-    service.beta.kubernetes.io/aws-load-balancer-type: "nlb"
-    service.beta.kubernetes.io/aws-load-balancer-scheme: "internet-facing"
-spec:
-  selector:
-    app: auction-management
-  ports:
-  - protocol: TCP
-    port: 80
-    targetPort: 8000
-  type: LoadBalancer
