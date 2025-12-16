@@ -29,15 +29,22 @@ cd backend
 docker build --platform linux/amd64 --no-cache -f auction-management-service/Dockerfile -t ${IMAGE_NAME} .
 
 echo ""
-echo "Step 3: Pushing image to ECR..."
+echo "Step 3: Deleting old image from ECR (if exists)..."
+aws ecr batch-delete-image \
+    --repository-name ${ECR_REPO} \
+    --image-ids imageTag=${IMAGE_TAG} \
+    --region ${AWS_REGION} 2>/dev/null || echo "No old image to delete (or doesn't exist)"
+
+echo ""
+echo "Step 4: Pushing new image to ECR..."
 docker push ${IMAGE_NAME}
 
 echo ""
-echo "Step 4: Restarting Kubernetes deployment..."
+echo "Step 5: Restarting Kubernetes deployment..."
 kubectl rollout restart deployment/${SERVICE_NAME}
 
 echo ""
-echo "Step 5: Waiting for rollout to complete..."
+echo "Step 6: Waiting for rollout to complete..."
 kubectl rollout status deployment/${SERVICE_NAME} --timeout=5m
 
 echo ""

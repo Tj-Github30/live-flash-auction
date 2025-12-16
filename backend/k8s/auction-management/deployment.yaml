@@ -14,6 +14,7 @@ spec:
       labels:
         app: auction-management
     spec:
+      serviceAccountName: auction-management-sa
       containers:
       - name: auction-management
         image: 938041861431.dkr.ecr.us-east-1.amazonaws.com/live-auction/auction-management-service:latest
@@ -44,6 +45,8 @@ spec:
           value: "us-east-1"
         - name: AWS_REGION
           value: "us-east-1"
+        - name: CORS_ORIGINS
+          value: "*"
         resources:
           requests:
             memory: "256Mi"

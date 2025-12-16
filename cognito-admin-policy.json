@@ -1,0 +1,17 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "CognitoAdminForThisUserPoolOnly",
+      "Effect": "Allow",
+      "Action": [
+        "cognito-idp:AdminGetUser",
+        "cognito-idp:AdminCreateUser",
+        "cognito-idp:AdminSetUserPassword",
+        "cognito-idp:AdminConfirmSignUp",
+        "cognito-idp:AdminUpdateUserAttributes"
+      ],
+      "Resource": "arn:aws:cognito-idp:us-east-1:938041861431:userpool/us-east-1_UHhA2Am3q"
+    }
+  ]
+}
