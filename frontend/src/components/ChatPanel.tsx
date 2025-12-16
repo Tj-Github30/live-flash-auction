@@ -1,5 +1,5 @@
 import { Send, Smile } from 'lucide-react';
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Input } from './ui/input';
 import { Button } from './ui/button';
 import { ScrollArea } from './ui/scroll-area';
@@ -13,67 +13,48 @@ interface Message {
   avatar?: string;
 }
 
-const mockMessages: Message[] = [
-  {
-    id: '1',
-    type: 'system',
-    message: 'Auction started',
-    timestamp: '2:45 PM',
-  },
-  {
-    id: '2',
-    type: 'user',
-    username: 'ArtCollector99',
-    message: 'Beautiful piece!',
-    timestamp: '2:46 PM',
-  },
-  {
-    id: '3',
-    type: 'system',
-    message: 'User_7854 placed a bid of $145,500',
-    timestamp: '2:47 PM',
-  },
-  {
-    id: '4',
-    type: 'auctioneer',
-    username: 'Auctioneer',
-    message: 'We have $145,500. Do I hear $146,000?',
-    timestamp: '2:47 PM',
-  },
-  {
-    id: '5',
-    type: 'user',
-    username: 'LuxuryWatch',
-    message: 'Incredible condition 🔥',
-    timestamp: '2:48 PM',
-  },
-  {
-    id: '6',
-    type: 'user',
-    username: 'Collector_42',
-    message: 'How many pieces were made?',
-    timestamp: '2:49 PM',
-  },
-  {
-    id: '7',
-    type: 'auctioneer',
-    username: 'Auctioneer',
-    message: 'This is a limited production run. Very rare.',
-    timestamp: '2:49 PM',
-  },
-  {
-    id: '8',
-    type: 'system',
-    message: 'WatchEnthusiast placed a bid of $146,000',
-    timestamp: '2:50 PM',
-  },
-];
+interface ChatPanelProps {
+  messages?: Array<{
+    id?: string;
+    type?: string;
+    username?: string;
+    message: string;
+    timestamp: number | string;
+  }>;
+  onSendMessage?: (message: string) => void;
+}
 
-export function ChatPanel() {
+export function ChatPanel({ messages = [], onSendMessage }: ChatPanelProps) {
   const [message, setMessage] = useState('');
+  const scrollAreaRef = useRef<HTMLDivElement>(null);
+
+  // Format messages for display
+  const formattedMessages: Message[] = messages.map((msg, index) => {
+    const date = new Date(typeof msg.timestamp === 'number' ? msg.timestamp : Date.now());
+    const timeStr = date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+    
+    return {
+      id: msg.id || `msg-${index}`,
+      type: (msg.type as 'user' | 'system' | 'auctioneer') || 'user',
+      username: msg.username,
+      message: msg.message,
+      timestamp: timeStr,
+    };
+  });
+
+  // Auto-scroll to bottom when new messages arrive
+  useEffect(() => {
+    if (scrollAreaRef.current) {
+      const scrollContainer = scrollAreaRef.current.querySelector('[data-radix-scroll-area-viewport]');
+      if (scrollContainer) {
+        scrollContainer.scrollTop = scrollContainer.scrollHeight;
+      }
+    }
+  }, [messages]);
 
   const handleSend = () => {
-    if (message.trim()) {
+    if (message.trim() && onSendMessage) {
+      onSendMessage(message.trim());
       setMessage('');
     }
   };
@@ -87,9 +68,14 @@ export function ChatPanel() {
       </div>
 
       {/* Messages */}
-      <ScrollArea className="flex-1 p-4">
+      <ScrollArea className="flex-1 p-4" ref={scrollAreaRef}>
         <div className="space-y-3">
-          {mockMessages.map((msg) => (
+          {formattedMessages.length === 0 ? (
+            <div className="text-center text-muted-foreground text-sm py-8">
+              No messages yet. Start the conversation!
+            </div>
+          ) : (
+            formattedMessages.map((msg) => (
             <div key={msg.id}>
               {msg.type === 'system' && (
                 <div className="text-center">
@@ -137,7 +123,8 @@ export function ChatPanel() {
                 </div>
               )}
             </div>
-          ))}
+            ))
+          )}
         </div>
       </ScrollArea>
 

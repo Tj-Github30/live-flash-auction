@@ -28,8 +28,14 @@ def create_app() -> Flask:
     """Create and configure Flask application"""
     app = Flask(__name__)
 
-    # CORS configuration
-    CORS(app, origins=settings.cors_origins_list)
+    # CORS configuration - Allow all methods and headers for development
+    CORS(
+        app, 
+        origins=settings.cors_origins_list,
+        methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
+        allow_headers=["Content-Type", "Authorization", "X-Requested-With"],
+        supports_credentials=True
+    )
 
     # Setup logger
     logger = setup_logger("auction-management")

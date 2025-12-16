@@ -3,12 +3,15 @@ import { useState } from 'react';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { ScrollArea } from './ui/scroll-area';
+import { api } from '../utils/api';
 
 interface BiddingPanelProps {
   title: string;
   currentBid: number;
   timeRemaining: string;
   bidIncrement: number;
+  auctionId: string;
+  recentBids?: Array<{ username: string; amount: number; timestamp: string }>;
 }
 
 interface Bid {
@@ -19,28 +22,62 @@ interface Bid {
   isYou?: boolean;
 }
 
-const mockRecentBids: Bid[] = [
-  { id: '1', username: 'WatchEnthusiast', amount: 146000, timestamp: '1m ago' },
-  { id: '2', username: 'You', amount: 145500, timestamp: '3m ago', isYou: true },
-  { id: '3', username: 'User_7854', amount: 145000, timestamp: '5m ago' },
-  { id: '4', username: 'Collector_42', amount: 144500, timestamp: '8m ago' },
-  { id: '5', username: 'LuxuryBids', amount: 144000, timestamp: '10m ago' },
-];
-
-export function BiddingPanel({ title, currentBid, timeRemaining, bidIncrement }: BiddingPanelProps) {
+export function BiddingPanel({ 
+  title, 
+  currentBid, 
+  timeRemaining, 
+  bidIncrement,
+  auctionId,
+  recentBids = []
+}: BiddingPanelProps) {
   const [customBid, setCustomBid] = useState('');
+  const [isPlacingBid, setIsPlacingBid] = useState(false);
   const nextMinBid = currentBid + bidIncrement;
-  const isWinning = mockRecentBids[0]?.isYou;
+  
+  // Format recent bids
+  const formattedBids: Bid[] = recentBids.map((bid, index) => ({
+    id: `bid-${index}`,
+    username: bid.username,
+    amount: bid.amount,
+    timestamp: bid.timestamp || 'now',
+    isYou: false // TODO: Check if bid is from current user
+  }));
+  
+  const isWinning = formattedBids[0]?.isYou || false;
 
-  const handleQuickBid = (amount: number) => {
-    console.log('Placing bid:', amount);
+  const handleQuickBid = async (amount: number) => {
+    await placeBid(amount);
   };
 
-  const handleCustomBid = () => {
+  const handleCustomBid = async () => {
     const amount = parseFloat(customBid);
     if (amount >= nextMinBid) {
-      console.log('Placing custom bid:', amount);
+      await placeBid(amount);
       setCustomBid('');
+    }
+  };
+
+  const placeBid = async (amount: number) => {
+    if (isPlacingBid || amount < nextMinBid) return;
+    
+    setIsPlacingBid(true);
+    try {
+      const response = await api.post('/api/bids', {
+        auction_id: auctionId,
+        bid_amount: amount
+      });
+      
+      if (response.ok) {
+        console.log('Bid placed successfully');
+      } else {
+        const error = await response.json();
+        alert(error.error || 'Failed to place bid');
+      }
+    } catch (error) {
+      console.error('Error placing bid:', error);
+      alert('Failed to place bid. Please try again.');
+    } finally {
+      setIsPlacingBid(false);
     }
   };
 
@@ -88,6 +125,7 @@ export function BiddingPanel({ title, currentBid, timeRemaining, bidIncrement }:
           <Button
             variant="outline"
             onClick={() => handleQuickBid(currentBid + bidIncrement)}
+            disabled={isPlacingBid}
             className="h-10"
           >
             +${(bidIncrement / 1000)}k
@@ -95,6 +133,7 @@ export function BiddingPanel({ title, currentBid, timeRemaining, bidIncrement }:
           <Button
             variant="outline"
             onClick={() => handleQuickBid(currentBid + bidIncrement * 2)}
+            disabled={isPlacingBid}
             className="h-10"
           >
             +${(bidIncrement * 2 / 1000)}k
@@ -118,9 +157,10 @@ export function BiddingPanel({ title, currentBid, timeRemaining, bidIncrement }:
         {/* Place Bid Button */}
         <Button
           onClick={handleCustomBid}
+          disabled={isPlacingBid || !customBid || parseFloat(customBid) < nextMinBid}
           className="w-full bg-accent hover:bg-accent/90 h-11"
         >
-          Place Bid
+          {isPlacingBid ? 'Placing Bid...' : 'Place Bid'}
         </Button>
       </div>
 
@@ -131,7 +171,12 @@ export function BiddingPanel({ title, currentBid, timeRemaining, bidIncrement }:
         </div>
         <ScrollArea className="flex-1 px-4 py-2">
           <div className="space-y-2">
-            {mockRecentBids.map((bid, index) => (
+            {formattedBids.length === 0 ? (
+              <div className="text-center text-muted-foreground text-sm py-8">
+                No bids yet. Be the first to bid!
+              </div>
+            ) : (
+              formattedBids.map((bid, index) => (
               <div
                 key={bid.id}
                 className={`flex items-center justify-between py-2 px-3 rounded-lg transition-colors ${
@@ -157,7 +202,8 @@ export function BiddingPanel({ title, currentBid, timeRemaining, bidIncrement }:
                   ${bid.amount.toLocaleString()}
                 </p>
               </div>
-            ))}
+              ))
+            )}
           </div>
         </ScrollArea>
       </div>

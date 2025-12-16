@@ -1,0 +1,80 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: live-auction-ingress
+  annotations:
+    alb.ingress.kubernetes.io/ingress-class: alb
+    alb.ingress.kubernetes.io/scheme: internet-facing
+    alb.ingress.kubernetes.io/target-type: ip
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80}]'
+    alb.ingress.kubernetes.io/healthcheck-path: /health
+    alb.ingress.kubernetes.io/healthcheck-protocol: HTTP
+    alb.ingress.kubernetes.io/healthcheck-interval-seconds: "30"
+    alb.ingress.kubernetes.io/healthcheck-timeout-seconds: "5"
+    alb.ingress.kubernetes.io/healthy-threshold-count: "2"
+    alb.ingress.kubernetes.io/unhealthy-threshold-count: "3"
+    # WebSocket support
+    alb.ingress.kubernetes.io/backend-protocol: HTTP
+    alb.ingress.kubernetes.io/target-group-attributes: stickiness.enabled=true,stickiness.lb_cookie.duration_seconds=86400
+    # Specify subnets explicitly to avoid auto-discovery issues
+    alb.ingress.kubernetes.io/subnets: subnet-0b60d1b6e1b6c917c,subnet-08ed4fee5a600ebf1
+spec:
+  ingressClassName: alb
+  rules:
+  - http:
+      paths:
+      # Auction Management API
+      - path: /api/auctions
+        pathType: Prefix
+        backend:
+          service:
+            name: auction-management-service
+            port:
+              number: 8000
+      - path: /api/auth
+        pathType: Prefix
+        backend:
+          service:
+            name: auction-management-service
+            port:
+              number: 8000
+      - path: /health
+        pathType: Exact
+        backend:
+          service:
+            name: auction-management-service
+            port:
+              number: 8000
+      # Bid Processing API
+      - path: /api/bids
+        pathType: Prefix
+        backend:
+          service:
+            name: bid-processing-service
+            port:
+              number: 8002
+      # WebSocket Service (Flask-SocketIO uses /socket.io by default)
+      - path: /socket.io
+        pathType: Prefix
+        backend:
+          service:
+            name: websocket-service
+            port:
+              number: 8001
+      # Also support /ws for backward compatibility
+      - path: /ws
+        pathType: Prefix
+        backend:
+          service:
+            name: websocket-service
+            port:
+              number: 8001
+      # Default fallback to auction-management
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: auction-management-service
+            port:
+              number: 8000
+
