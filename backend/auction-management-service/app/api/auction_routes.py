@@ -9,7 +9,7 @@ from app.services.auction_service import AuctionService
 from shared.utils.errors import AuctionError
 from shared.utils.logger import setup_logger
 
-bp = Blueprint("auctions", __name__, url_prefix="/auctions")
+bp = Blueprint("auctions", __name__, url_prefix="/api/auctions")
 logger = setup_logger("auction-routes")
 auction_service = AuctionService()
 

@@ -13,17 +13,16 @@ bp = Blueprint("auth", __name__, url_prefix="/api/auth")
 logger = setup_logger("auth-routes")
 
 
-@bp.route("/initiate", methods=["POST", "OPTIONS"])
+@bp.route("/initiate", methods=["POST"])
 @cross_origin(
     origins=settings.cors_origins_list,
     methods=["POST", "OPTIONS"],
     headers=["Content-Type", "Authorization"],
-    supports_credentials=True
+    supports_credentials=True,
+    automatic_options=True
 )
 def initiate_auth():
     """Initiate authentication flow - sends OTP"""
-    if request.method == "OPTIONS":
-        return jsonify({}), 200
     
     try:
         data = request.get_json()
@@ -72,17 +71,16 @@ def initiate_auth():
         return jsonify({"error": "Failed to initiate authentication"}), 500
 
 
-@bp.route("/resend-code", methods=["POST", "OPTIONS"])
+@bp.route("/resend-code", methods=["POST"])
 @cross_origin(
     origins=settings.cors_origins_list,
     methods=["POST", "OPTIONS"],
     headers=["Content-Type", "Authorization"],
-    supports_credentials=True
+    supports_credentials=True,
+    automatic_options=True
 )
 def resend_code():
     """Resend verification code"""
-    if request.method == "OPTIONS":
-        return jsonify({}), 200
     
     try:
         data = request.get_json()
@@ -104,17 +102,16 @@ def resend_code():
         return jsonify({"error": "Failed to resend code"}), 500
 
 
-@bp.route("/verify-otp", methods=["POST", "OPTIONS"])
+@bp.route("/verify-otp", methods=["POST"])
 @cross_origin(
     origins=settings.cors_origins_list,
     methods=["POST", "OPTIONS"],
     headers=["Content-Type", "Authorization"],
-    supports_credentials=True
+    supports_credentials=True,
+    automatic_options=True
 )
 def verify_otp():
     """Verify OTP code and return tokens"""
-    if request.method == "OPTIONS":
-        return jsonify({}), 200
     
     try:
         data = request.get_json()

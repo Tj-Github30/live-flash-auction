@@ -72,6 +72,7 @@ class Settings(BaseSettings):
     # Application
     FLASK_ENV: str = "development"
     FLASK_DEBUG: bool = True
+    FLASK_SECRET_KEY: str = ""
     LOG_LEVEL: str = "INFO"
 
     # Auction Settings

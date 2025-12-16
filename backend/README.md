@@ -111,11 +111,15 @@ Real-time bidding platform with Flask-based microservices for live auctions with
 
 ## API Documentation
 
+**Base URL**: `http://k8s-default-liveauct-6106fb6182-1786964572.us-east-1.elb.amazonaws.com`
+
+**Note**: All API endpoints are prefixed with `/api` when accessed via ALB Ingress.
+
 ### Auction Management Service
 
 #### Create Auction
 ```http
-POST /auctions
+POST /api/auctions
 Authorization: Bearer <cognito_token>
 Content-Type: application/json
 
@@ -130,24 +134,58 @@ Content-Type: application/json
 
 #### Get Auction
 ```http
-GET /auctions/{auction_id}
+GET /api/auctions/{auction_id}
 ```
 
 #### List Auctions
 ```http
-GET /auctions?status=live&limit=20&offset=0&category=Watches
+GET /api/auctions?status=live&limit=20&offset=0&category=Watches
 ```
 
 #### Get Auction State
 ```http
-GET /auctions/{auction_id}/state
+GET /api/auctions/{auction_id}/state
+```
+
+### Authentication Endpoints
+
+#### Initiate Auth (Send OTP)
+```http
+POST /api/auth/initiate
+Content-Type: application/json
+
+{
+  "email": "user@example.com",
+  "isSignup": false
+}
+```
+
+#### Verify OTP
+```http
+POST /api/auth/verify
+Content-Type: application/json
+
+{
+  "session": "<session_token>",
+  "otp": "123456"
+}
+```
+
+#### Resend OTP
+```http
+POST /api/auth/resend
+Content-Type: application/json
+
+{
+  "session": "<session_token>"
+}
 ```
 
 ### Bid Processing Service
 
 #### Place Bid
 ```http
-POST /internal/bids
+POST /api/bids
 Authorization: Bearer <cognito_token>
 Content-Type: application/json
 
@@ -157,23 +195,41 @@ Content-Type: application/json
 }
 ```
 
+**Note**: The bid processing service is exposed via ALB at `/api/bids`.
+
 ### WebSocket Service
+
+**Connection URL**: `ws://k8s-default-liveauct-6106fb6182-1786964572.us-east-1.elb.amazonaws.com`  
+**Path**: `/socket.io` (Flask-SocketIO default)
 
 #### Connection
 ```javascript
-const socket = io('ws://localhost:8001', {
-  query: { token: cognito_jwt_token }
+import { io } from 'socket.io-client';
+
+const socket = io('http://k8s-default-liveauct-6106fb6182-1786964572.us-east-1.elb.amazonaws.com', {
+  path: '/socket.io',  // Flask-SocketIO default path
+  transports: ['websocket', 'polling'],
+  query: { 
+    token: cognito_jwt_token,
+    auction_id: 'auction-uuid'
+  }
 });
 
-socket.on('connected', (data) => {
-  console.log('Connected:', data);
+socket.on('connect', () => {
+  console.log('Connected:', socket.id);
+  // Emit join_auction after connection
+  socket.emit('join_auction', {
+    auction_id: '123e4567-e89b-12d3-a456-426614174000',
+    token: cognito_jwt_token
+  });
 });
 ```
 
 #### Join Auction
 ```javascript
 socket.emit('join_auction', {
-  auction_id: '123e4567-e89b-12d3-a456-426614174000'
+  auction_id: '123e4567-e89b-12d3-a456-426614174000',
+  token: cognito_jwt_token
 });
 
 socket.on('joined_auction', (state) => {
@@ -275,19 +331,34 @@ ivs_playback_url TEXT
 
 ## Deployment
 
+### Current Deployment Status
+
+**Production ALB**: `k8s-default-liveauct-6106fb6182-1786964572.us-east-1.elb.amazonaws.com`
+
+All services are deployed on EKS and exposed via ALB Ingress:
+- `/api/auctions` → Auction Management Service (port 8000)
+- `/api/auth` → Auction Management Service (port 8000)
+- `/api/bids` → Bid Processing Service (port 8002)
+- `/socket.io` → WebSocket Service (port 8001)
+- `/health` → Health checks
+
 ### Build Docker Images
+
+**Important**: Always build for `linux/amd64` platform (EKS nodes are x86_64).
+
 ```bash
 # Build all services
 docker-compose build
 
-# Or build individually
-docker build -t auction-management:latest ./auction-management-service
-docker build -t websocket:latest ./websocket-service
-docker build -t bid-processing:latest ./bid-processing-service
-docker build -t timer:latest ./timer-service
+# Or build individually (with platform flag)
+docker build --platform linux/amd64 -t auction-management:latest ./auction-management-service
+docker build --platform linux/amd64 -t websocket:latest ./websocket-service
+docker build --platform linux/amd64 -t bid-processing:latest ./bid-processing-service
+docker build --platform linux/amd64 -t timer:latest ./timer-service
 ```
 
 ### Deploy to Kubernetes
+
 ```bash
 # Apply all manifests
 kubectl apply -f k8s/
@@ -297,15 +368,64 @@ kubectl apply -f k8s/auction-management/
 kubectl apply -f k8s/websocket/
 kubectl apply -f k8s/bid-processing/
 kubectl apply -f k8s/timer/
+kubectl apply -f k8s/ingress.yaml
 ```
+
+### Redeploy Services
+
+**Quick Redeploy** (Auction Management Service):
+```bash
+./redeploy-auction-service.sh
+```
+
+**Manual Redeploy**:
+```bash
+# 1. Login to ECR
+aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin 938041861431.dkr.ecr.us-east-1.amazonaws.com
+
+# 2. Build and push (example for auction-management-service)
+cd backend
+docker build --platform linux/amd64 -f auction-management-service/Dockerfile \
+  -t 938041861431.dkr.ecr.us-east-1.amazonaws.com/live-auction/auction-management-service:latest .
+docker push 938041861431.dkr.ecr.us-east-1.amazonaws.com/live-auction/auction-management-service:latest
+
+# 3. Restart deployment
+kubectl rollout restart deployment/auction-management-service
+kubectl rollout status deployment/auction-management-service --timeout=5m
+```
+
+**See `../HANDOVER.md` for complete redeployment guide for all services.**
 
 ## Testing
 
-Health check endpoints:
+### Health Check Endpoints
+
+**Local Development**:
 - Auction Management: http://localhost:8000/health
 - WebSocket: http://localhost:8001/health
 - Bid Processing: http://localhost:8002/health
 - Timer: http://localhost:8003/health
+
+**Production (via ALB)**:
+- Health Check: http://k8s-default-liveauct-6106fb6182-1786964572.us-east-1.elb.amazonaws.com/health
+
+### Verify Deployment
+
+```bash
+# Check pod status
+kubectl get pods -l app=auction-management
+kubectl get pods -l app=websocket
+kubectl get pods -l app=bid-processing
+kubectl get pods -l app=timer
+
+# Check service endpoints
+kubectl get ingress
+
+# View logs
+kubectl logs -l app=auction-management --tail=50
+```
+
+**See `../verify-aws-resources.sh` for comprehensive resource verification.**
 
 ## Lambda Functions
 
@@ -349,8 +469,23 @@ docker-compose exec postgres psql -U auction_user -d live_auction -c "SELECT 1"
 
 ### WebSocket connection issues
 - Ensure CORS origins are configured correctly
-- Verify Cognito token is valid
-- Check WebSocket service logs
+- Verify Cognito token is valid (not expired)
+- Check WebSocket service logs: `kubectl logs -l app=websocket`
+- Verify ALB Ingress is routing `/socket.io` correctly
+- Check that WebSocket service is using `/socket.io` path (Flask-SocketIO default)
+
+### ALB/Ingress issues
+- Check Ingress status: `kubectl get ingress`
+- Verify ALB controller logs: `kubectl logs -n kube-system -l app.kubernetes.io/name=aws-load-balancer-controller`
+- Ensure subnets are correctly configured in Ingress annotations
+- Check security groups allow traffic on port 80
+
+## 📚 Related Documentation
+
+- **`../HANDOVER.md`** - Project handover guide with redeployment steps
+- **`../PROJECT_STATUS.md`** - Current project status and progress
+- **`../ENTIRE_PHASE_GUIDELINES.md`** - Complete AWS setup guide
+- **`../frontend/README.md`** - Frontend documentation
 
 ## License
 

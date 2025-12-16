@@ -2,16 +2,22 @@ import { ChevronDown, X, Search } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 
 interface FiltersBarProps {
-  onFilterChange?: (filters: any) => void;
+  onFilterChange?: (category: string | null) => void;
 }
 
 export function FiltersBar({ onFilterChange }: FiltersBarProps) {
+  const handleCategoryChange = (value: string) => {
+    if (onFilterChange) {
+      onFilterChange(value === 'all' ? null : value);
+    }
+  };
+
   return (
     <div className="bg-secondary/30 border-b border-border py-4">
       <div className="max-w-[1600px] mx-auto px-6">
         <div className="flex items-center gap-4 flex-wrap">
           {/* Category */}
-          <Select defaultValue="all">
+          <Select defaultValue="all" onValueChange={handleCategoryChange}>
             <SelectTrigger className="w-[160px] bg-white">
               <SelectValue placeholder="Category" />
             </SelectTrigger>

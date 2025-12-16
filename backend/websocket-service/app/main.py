@@ -1,6 +1,7 @@
 """
 WebSocket Service - Real-time bidding and chat
 """
+import os
 import eventlet
 eventlet.monkey_patch()
 
@@ -19,7 +20,7 @@ logger = setup_logger("websocket-service")
 
 # Create Flask app
 app = Flask(__name__)
-app.config["SECRET_KEY"] = "dev-secret-key"  # TODO: Use env variable
+app.config["SECRET_KEY"] = settings.FLASK_SECRET_KEY or os.getenv("FLASK_SECRET_KEY", "dev-secret-key-change-in-production")
 CORS(app, origins=settings.cors_origins_list)
 
 # Create SocketIO instance
