@@ -39,13 +39,24 @@ export const AuctionRoomPage: React.FC = () => {
           console.warn("Could not fetch auction state:", err);
         }
 
+        // derive initial time remaining in seconds with fallbacks
+        const initialTimeRemaining =
+          state?.time_remaining_seconds ??
+          state?.time_remaining ??
+          auction.time_remaining_seconds ??
+          calculateTimeRemaining(auction.end_time);
+
         const formattedAuction: AuctionData = {
           id: auction.auction_id,
           auctionId: auction.auction_id,
           image: auction.image_url || NO_IMAGE_DATA_URI,
           title: auction.title,
           currentBid: state?.current_high_bid || auction.current_high_bid || auction.starting_bid,
-          timeRemaining: formatTimeRemaining(state?.time_remaining || calculateTimeRemaining(auction.end_time)),
+          timeRemaining: formatTimeRemaining(initialTimeRemaining),
+          timeRemainingSeconds:
+            typeof initialTimeRemaining === "string"
+              ? parseInt(initialTimeRemaining, 10)
+              : (initialTimeRemaining as number | undefined),
           viewers: state?.participant_count || 0,
           description: auction.description || "",
           category: auction.category || "",

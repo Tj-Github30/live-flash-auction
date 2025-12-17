@@ -17,6 +17,7 @@ export interface AuctionData {
   title: string;
   currentBid: number;
   timeRemaining: string;
+  timeRemainingSeconds?: number | null;
   viewers: number;
   description: string;
   category: string;
@@ -71,6 +72,9 @@ export function LiveAuctionRoom({ auction, onBack }: LiveAuctionRoomProps) {
   const socketRef = useRef<Socket | null>(null);
   const [currentBid, setCurrentBid] = useState(auction.currentBid);
   const [timeRemaining, setTimeRemaining] = useState(auction.timeRemaining);
+  const [timeRemainingSeconds, setTimeRemainingSeconds] = useState<number | null | undefined>(
+    auction.timeRemainingSeconds
+  );
   const [viewers, setViewers] = useState(auction.viewers);
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [recentBids, setRecentBids] = useState<Array<{ username: string; amount: number; timestamp: string }>>([]);
@@ -119,8 +123,15 @@ export function LiveAuctionRoom({ auction, onBack }: LiveAuctionRoomProps) {
       if (data.current_high_bid) {
         setCurrentBid(data.current_high_bid);
       }
-      if (data.time_remaining) {
+      if (data.time_remaining !== undefined) {
         setTimeRemaining(data.time_remaining);
+        const parsed =
+          typeof data.time_remaining === "number"
+            ? data.time_remaining
+            : /^\d+$/.test(String(data.time_remaining))
+              ? parseInt(String(data.time_remaining), 10)
+              : null;
+        setTimeRemainingSeconds(parsed);
       }
       if (typeof data.high_bidder_id === 'string') {
         setHighBidderId(data.high_bidder_id || null);
@@ -191,6 +202,11 @@ export function LiveAuctionRoom({ auction, onBack }: LiveAuctionRoomProps) {
       // Note: allow 0 to flow through so UI can show "Ended".
       if (seconds !== undefined) {
         setTimeRemaining(seconds as any);
+        if (typeof seconds === "number") {
+          setTimeRemainingSeconds(seconds);
+        } else if (typeof seconds === "string" && /^\d+$/.test(seconds)) {
+          setTimeRemainingSeconds(parseInt(seconds, 10));
+        }
       }
     });
 
@@ -232,6 +248,21 @@ export function LiveAuctionRoom({ auction, onBack }: LiveAuctionRoomProps) {
       }
     };
   }, [tokens?.idToken, auction.auctionId]);
+
+  // Local 1-second tick between server updates so the timer stays live.
+  useEffect(() => {
+    const id = window.setInterval(() => {
+      setTimeRemainingSeconds((prev) => {
+        if (prev === null || prev === undefined) return prev;
+        const next = Math.max(0, prev - 1);
+        if (next !== prev) {
+          setTimeRemaining(next.toString());
+        }
+        return next;
+      });
+    }, 1000);
+    return () => window.clearInterval(id);
+  }, []);
 
   const handleSendChat = (message: string) => {
     if (socketRef.current && message.trim()) {
@@ -286,7 +317,7 @@ export function LiveAuctionRoom({ auction, onBack }: LiveAuctionRoomProps) {
             <BiddingPanel
               title={auction.title}
               currentBid={currentBid}
-              timeRemaining={formatTimeRemaining(timeRemaining)}
+              timeRemaining={formatTimeRemaining(timeRemainingSeconds ?? timeRemaining)}
               bidIncrement={auction.bidIncrement}
               auctionId={auction.auctionId}
               recentBids={recentBids}
