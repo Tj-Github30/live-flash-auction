@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, AlertTriangle, Lock } from 'lucide-react'; // Added Lock icon
+import { ArrowLeft, AlertTriangle, Lock, ImageOff } from 'lucide-react'; 
 import ImageGallery from 'react-image-gallery';
 import 'react-image-gallery/styles/css/image-gallery.css';
 
@@ -96,6 +96,7 @@ export function LiveAuctionRoom({ auction, onBack }: LiveAuctionRoomProps) {
 
   const galleryImages = useMemo(() => {
     const all = Array.from(new Set([auction.image, ...(auction.galleryImages || [])])).filter(Boolean);
+    if (all.length === 0) return [];
     return all.map(img => ({ original: img, thumbnail: img }));
   }, [auction.image, auction.galleryImages]);
 
@@ -188,18 +189,25 @@ export function LiveAuctionRoom({ auction, onBack }: LiveAuctionRoomProps) {
             <ChatPanel messages={chatMessages} onSendMessage={handleSendChat} />
           </div>
 
-          <div className="col-span-6 bg-white p-4 rounded-xl shadow-sm border border-gray-100 h-[700px] flex flex-col">
-            <div className="relative flex-grow overflow-hidden">
-              <ImageGallery
-                items={galleryImages}
-                showPlayButton={false}
-                thumbnailPosition="left"
-                showIndex={true}
-                showFullscreenButton={false}
-                additionalClass="live-auction-gallery h-full w-full"
-              />
+          <div className="col-span-6 bg-white p-4 rounded-xl shadow-sm border border-gray-100 h-[700px] flex flex-col relative overflow-hidden">
+            <div className="relative flex-grow h-full bg-gray-50 rounded-lg flex items-center justify-center">
+              {galleryImages.length > 0 ? (
+                <ImageGallery
+                  items={galleryImages}
+                  showPlayButton={false}
+                  thumbnailPosition="left"
+                  showIndex={true}
+                  showFullscreenButton={false}
+                  additionalClass="live-auction-gallery h-full w-full"
+                />
+              ) : (
+                <div className="flex flex-col items-center justify-center text-gray-400">
+                  <ImageOff className="w-16 h-16 mb-2 opacity-20" />
+                  <span className="text-sm font-medium opacity-50 uppercase tracking-widest">No images available</span>
+                </div>
+              )}
 
-               {/* ADDED: ENDED BACKDROP BLUR AND LOCK ICON */}
+               {/* ENDED BACKDROP BLUR AND LOCK ICON */}
                {isEnded && (
                  <div className="absolute inset-0 z-20 bg-black/60 flex flex-col items-center justify-center backdrop-blur-[2px] transition-opacity duration-500">
                     <div className="bg-white/10 backdrop-blur-md border border-white/20 p-8 rounded-3xl flex flex-col items-center">
@@ -212,7 +220,8 @@ export function LiveAuctionRoom({ auction, onBack }: LiveAuctionRoomProps) {
                  </div>
                )}
 
-               <div className="absolute top-4 left-16 z-30 bg-black/60 px-3 py-1 rounded-full text-white text-sm flex items-center gap-2">
+               {/* STATUS BADGE */}
+               <div className="absolute top-4 left-4 z-30 bg-black/60 px-3 py-1 rounded-full text-white text-sm flex items-center gap-2">
                  {isEnded ? (
                    <>
                      <span className="w-2 h-2 bg-red-500 rounded-full" />
@@ -226,6 +235,7 @@ export function LiveAuctionRoom({ auction, onBack }: LiveAuctionRoomProps) {
                  )}
                </div>
 
+               {/* TIMER BADGE */}
                <div className="absolute top-4 right-4 z-30 bg-black/60 px-4 py-1.5 rounded-full text-white text-sm font-mono shadow-xl border border-white/5">
                  {isEnded ? "00:00:00" : formatTimeRemaining(timeRemainingSeconds ?? auction.timeRemaining)}
                </div>
@@ -239,6 +249,14 @@ export function LiveAuctionRoom({ auction, onBack }: LiveAuctionRoomProps) {
                   <AlertTriangle className={`w-4 h-4 ${isEnded ? 'text-gray-300' : 'text-orange-500'}`} />
                   <span className="text-sm font-semibold text-gray-900">Host Controls</span>
                 </div>
+                
+                {/* HOST INFORMATIONAL TEXT FROM SCREENSHOT */}
+                {!isEnded && (
+                  <p className="text-[13px] text-gray-500 mb-4 leading-relaxed">
+                    Ending this auction will stop all bidding immediately. The current high bidder will be declared the winner.
+                  </p>
+                )}
+
                 <Button 
                   variant={isEnded ? "outline" : "destructive"} 
                   className="w-full h-12 font-bold uppercase tracking-wide"
