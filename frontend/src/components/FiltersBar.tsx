@@ -59,7 +59,6 @@ export function FiltersBar({ filters, onFilterChange, onClear }: FiltersBarProps
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Auctions</SelectItem>
-              <SelectItem value="ending-soon">Ending Soon</SelectItem>
               <SelectItem value="1h">Within 1 Hour</SelectItem>
               <SelectItem value="6h">Within 6 Hours</SelectItem>
               <SelectItem value="24h">Within 24 Hours</SelectItem>

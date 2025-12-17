@@ -225,7 +225,6 @@ export function BuyPage({ onAuctionClick }: BuyPageProps) {
         const secs = a.time_remaining_seconds ?? null;
         if (secs === null || secs === undefined) return false;
         switch (filters.timeRange) {
-          case 'ending-soon': return secs <= 3600;
           case '1h': return secs <= 3600;
           case '6h': return secs <= 21600;
           case '24h': return secs <= 86400;
