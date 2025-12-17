@@ -115,6 +115,32 @@ export function LiveAuctionRoom({ auction, onBack }: LiveAuctionRoomProps) {
     };
   }, [auction.auctionId]);
 
+  // Initial fetch of recent bids (best-effort) on mount
+  useEffect(() => {
+    let active = true;
+    const run = async () => {
+      try {
+        const resp = await api.get(`/api/auctions/${auction.auctionId}/state`);
+        if (!resp.ok) return;
+        const data = await apiJson<any>(resp);
+        if (!active) return;
+        if (Array.isArray(data?.recent_bids)) {
+          setRecentBids(
+            data.recent_bids.slice(0, 20).map((bid: any) => ({
+              username: bid.user_id === currentUserId ? "You" : bidderAliasForAuction({ auctionId: auction.auctionId, userId: bid.user_id }),
+              amount: bid.amount,
+              timestamp: bid.timestamp || bid.created_at || "now",
+            }))
+          );
+        }
+      } catch {
+        // ignore
+      }
+    };
+    run();
+    return () => { active = false; };
+  }, [auction.auctionId, currentUserId]);
+
   const handleCloseAuction = async () => {
     if (!window.confirm("Are you sure you want to close this auction manually?")) return;
 
@@ -152,6 +178,15 @@ export function LiveAuctionRoom({ auction, onBack }: LiveAuctionRoomProps) {
       setViewers(data.participant_count);
       if (data.status) setStatus(data.status);
       if (typeof data.high_bidder_id === 'string') setHighBidderId(data.high_bidder_id);
+      if (data.top_bids) {
+        setRecentBids(
+          data.top_bids.map((bid) => ({
+            username: bid.user_id === currentUserId ? "You" : bidderAliasForAuction({ auctionId: auction.auctionId, userId: bid.user_id }),
+            amount: bid.amount,
+            timestamp: bid.timestamp || "now",
+          }))
+        );
+      }
     });
 
     socket.on('timer_update', (data: TimerUpdatePayload) => {
@@ -190,6 +225,13 @@ export function LiveAuctionRoom({ auction, onBack }: LiveAuctionRoomProps) {
     let lastFetch = 0;
     const minIntervalMs = 2000;
 
+    const mapBids = (list: any[]) =>
+      (list || []).slice(0, 20).map((bid) => ({
+        username: bid.user_id === currentUserId ? "You" : bidderAliasForAuction({ auctionId: auction.auctionId, userId: bid.user_id }),
+        amount: bid.amount,
+        timestamp: bid.timestamp || bid.created_at || "now",
+      }));
+
     const fetchState = async () => {
       const now = Date.now();
       if (now - lastFetch < minIntervalMs) return;
@@ -203,6 +245,9 @@ export function LiveAuctionRoom({ auction, onBack }: LiveAuctionRoomProps) {
           setViewers(data.participant_count);
         } else if (typeof data?.viewers === "number") {
           setViewers(data.viewers);
+        }
+        if (Array.isArray(data?.recent_bids)) {
+          setRecentBids(mapBids(data.recent_bids));
         }
       } catch {
         // best-effort; ignore errors
