@@ -215,9 +215,15 @@ export function BiddingPanel({
         <ScrollArea className="flex-1 px-4 py-2">
           <div className="space-y-2">
             {formattedBids.length === 0 ? (
-              <div className="text-center text-muted-foreground text-sm py-8">
-                No bids yet. Be the first to bid!
-              </div>
+              isHost ? (
+                <div className="text-center text-muted-foreground text-sm py-8">
+                  No bids yet.
+                </div>
+              ) : (
+                <div className="text-center text-muted-foreground text-sm py-8">
+                  No bids yet. Be the first to bid!
+                </div>
+              )
             ) : (
               formattedBids.map((bid, index) => (
               <div

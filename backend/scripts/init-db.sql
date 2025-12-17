@@ -61,3 +61,18 @@ INSERT INTO users (user_id, email, username, name, is_verified)
 VALUES
     ('123e4567-e89b-12d3-a456-426614174000', 'test@example.com', 'testuser', 'Test User', TRUE)
 ON CONFLICT (email) DO NOTHING;
+
+-- Bids table
+CREATE TABLE IF NOT EXISTS bids (
+    bid_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    auction_id UUID NOT NULL REFERENCES auctions(auction_id) ON DELETE CASCADE,
+    user_id UUID NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+    username VARCHAR(255),
+    amount DECIMAL(10,2) NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Indexes for bids
+CREATE INDEX IF NOT EXISTS idx_bids_auction_id ON bids(auction_id);
+CREATE INDEX IF NOT EXISTS idx_bids_user_id ON bids(user_id);
+CREATE INDEX IF NOT EXISTS idx_bids_created_at ON bids(created_at);

@@ -2,7 +2,7 @@
 Pydantic schemas for bid-related operations
 """
 from pydantic import BaseModel, Field, validator
-from typing import Optional
+from typing import Optional, List
 from decimal import Decimal
 
 
@@ -52,3 +52,17 @@ class TopBid(BaseModel):
     username: str
     amount: Decimal
     timestamp: Optional[int] = None
+
+
+class BidListItem(BaseModel):
+    bid_id: str
+    auction_id: str
+    title: Optional[str]
+    image_url: Optional[str]
+    amount: Decimal
+    created_at: str
+    status: Optional[str] = None
+
+
+class BidListResponse(BaseModel):
+    bids: List[BidListItem]

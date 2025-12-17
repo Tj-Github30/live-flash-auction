@@ -183,7 +183,7 @@ export function NewListing() {
                 id="title"
                 type="text"
                 placeholder="e.g., Vintage Rolex Submariner"
-                className="mt-2"
+                className="mt-2 border border-border rounded-md focus-visible:ring-2 focus-visible:ring-accent/40"
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
               />
@@ -196,7 +196,7 @@ export function NewListing() {
                 id="seller-name"
                 type="text"
                 placeholder="How your name appears to bidders"
-                className="mt-2"
+                className="mt-2 border border-border rounded-md focus-visible:ring-2 focus-visible:ring-accent/40"
                 value={sellerName}
                 onChange={(e) => setSellerName(e.target.value)}
               />
@@ -209,7 +209,7 @@ export function NewListing() {
             <Textarea
               id="description"
               placeholder="Provide details about condition, provenance, and history..."
-              className="mt-2 min-h-32"
+              className="mt-2 min-h-32 border border-border rounded-md focus-visible:ring-2 focus-visible:ring-accent/40"
               value={description}
               onChange={(e) => setDescription(e.target.value)}
             />
@@ -220,7 +220,7 @@ export function NewListing() {
             <div>
               <Label>Category</Label>
               <Select value={category} onValueChange={setCategory}>
-                <SelectTrigger className="mt-2">
+                <SelectTrigger className="mt-2 border border-border rounded-md">
                   <SelectValue placeholder="Select a category" />
                 </SelectTrigger>
                 <SelectContent>
@@ -241,7 +241,7 @@ export function NewListing() {
                 id="condition"
                 type="text"
                 placeholder="e.g., Brand New, Mint Condition"
-                className="mt-2"
+                className="mt-2 border border-border rounded-md focus-visible:ring-2 focus-visible:ring-accent/40"
                 value={condition}
                 onChange={(e) => setCondition(e.target.value)}
               />
@@ -258,7 +258,7 @@ export function NewListing() {
                   id="starting-bid"
                   type="number"
                   placeholder="1000"
-                  className="pl-7"
+                  className="pl-7 border border-border rounded-md focus-visible:ring-2 focus-visible:ring-accent/40"
                   value={startingBid}
                   onChange={(e) => setStartingBid(e.target.value)}
                 />
@@ -269,7 +269,7 @@ export function NewListing() {
             <div>
               <Label>Auction Duration</Label>
               <Select value={duration} onValueChange={setDuration}> 
-                <SelectTrigger className="mt-2">
+                <SelectTrigger className="mt-2 border border-border rounded-md">
                   <SelectValue placeholder="Select duration" />
                 </SelectTrigger>
                 <SelectContent>
@@ -287,7 +287,7 @@ export function NewListing() {
                     <Input
                       type="number"
                       min="1"
-                      className="mt-2"
+                    className="mt-2 border border-border rounded-md focus-visible:ring-2 focus-visible:ring-accent/40"
                       value={customDurationValue}
                       onChange={(e) => setCustomDurationValue(e.target.value)}
                     />
@@ -296,7 +296,7 @@ export function NewListing() {
                     value={customDurationUnit}
                     onValueChange={(v) => setCustomDurationUnit(v as "minutes" | "hours")}
                   >
-                    <SelectTrigger className="w-[110px]">
+                  <SelectTrigger className="w-[110px] mt-2 border border-border rounded-md">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>

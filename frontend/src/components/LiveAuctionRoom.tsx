@@ -64,6 +64,38 @@ export function LiveAuctionRoom({ auction, onBack }: LiveAuctionRoomProps) {
     return status === 'closed' || (timeRemainingSeconds !== null && timeRemainingSeconds !== undefined && timeRemainingSeconds <= 0);
   }, [status, timeRemainingSeconds]);
 
+  // Persist recent bids per auction so they survive refresh
+  const bidsStorageKey = useMemo(() => `recent-bids:${auction.auctionId}`, [auction.auctionId]);
+
+  const mapRecentBids = (list: any[]) =>
+    (list || []).slice(0, 20).map((bid: any) => ({
+      username: bid.user_id === currentUserId ? "You" : bidderAliasForAuction({ auctionId: auction.auctionId, userId: bid.user_id }),
+      amount: bid.amount,
+      timestamp: bid.timestamp || bid.created_at || "now",
+    }));
+
+  const persistRecentBids = (bids: Array<{ username: string; amount: number; timestamp: string }>) => {
+    try {
+      sessionStorage.setItem(bidsStorageKey, JSON.stringify(bids));
+    } catch {
+      /* ignore */
+    }
+  };
+
+  const hydrateRecentBids = () => {
+    try {
+      const stored = sessionStorage.getItem(bidsStorageKey);
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (Array.isArray(parsed)) {
+          setRecentBids(parsed);
+        }
+      }
+    } catch {
+      /* ignore */
+    }
+  };
+
   // UNIFIED HELPER: Ensures Host is never a "Bidder"
   const getDisplayName = (msgUserId: any) => {
     if (!msgUserId) return "Guest";
@@ -86,8 +118,24 @@ export function LiveAuctionRoom({ auction, onBack }: LiveAuctionRoomProps) {
     return all.map(img => ({ original: img, thumbnail: img }));
   }, [auction.image, auction.galleryImages]);
 
-  // 1. Initial State Fetch
+  const isAuctionClosed = isEnded;
+
+  const displayTimeRemaining = useMemo(() => {
+    if (isEnded) return "Ended";
+    return formatTimeRemaining(timeRemainingSeconds ?? auction.timeRemaining);
+  }, [isEnded, timeRemainingSeconds, auction.timeRemaining]);
+
+  // Notify outer pages to adjust viewer counts optimistically
   useEffect(() => {
+    window.dispatchEvent(new CustomEvent("auction:viewed", { detail: { auctionId: auction.auctionId } }));
+    return () => {
+      window.dispatchEvent(new CustomEvent("auction:left", { detail: { auctionId: auction.auctionId } }));
+    };
+  }, [auction.auctionId]);
+
+  // Initial fetch of recent bids (best-effort) on mount + hydrate from storage
+  useEffect(() => {
+    hydrateRecentBids();
     let active = true;
     const fetchInitialState = async () => {
       try {
@@ -97,11 +145,9 @@ export function LiveAuctionRoom({ auction, onBack }: LiveAuctionRoomProps) {
         if (!active) return;
 
         if (Array.isArray(data?.recent_bids)) {
-          setRecentBids(data.recent_bids.map((bid: any) => ({
-            username: getDisplayName(bid.user_id),
-            amount: bid.amount,
-            timestamp: bid.timestamp || "Just now",
-          })));
+          const mapped = mapRecentBids(data.recent_bids);
+          setRecentBids(mapped);
+          persistRecentBids(mapped);
         }
 
         if (Array.isArray(data?.chat_messages)) {
@@ -133,11 +179,13 @@ export function LiveAuctionRoom({ auction, onBack }: LiveAuctionRoomProps) {
       if (data.status) setStatus(data.status);
       
       if (data.top_bids) {
-        setRecentBids(data.top_bids.map((bid: any) => ({
+        const mapped = data.top_bids.map((bid: { user_id?: string; amount: number; timestamp?: string }) => ({
           username: getDisplayName(bid.user_id),
           amount: bid.amount,
-          timestamp: bid.timestamp || "Just now",
-        })));
+          timestamp: bid.timestamp || "now",
+        }));
+        setRecentBids(mapped);
+        persistRecentBids(mapped);
       }
     });
 
@@ -149,8 +197,75 @@ export function LiveAuctionRoom({ auction, onBack }: LiveAuctionRoomProps) {
     });
 
     socket.connect();
-    return () => { socket.disconnect(); };
-  }, [tokens?.idToken, auction.auctionId, currentUserId, auction.hostUserId]);
+    return () => {
+      if (socketRef.current) {
+        socketRef.current.emit('leave_auction', { auction_id: auction.auctionId });
+        socketRef.current.disconnect();
+      }
+      // Optimistically remove the current viewer
+      setViewers((prev) => Math.max(0, (prev ?? 1) - 1));
+    };
+  }, [tokens?.idToken, auction.auctionId]);
+
+  // Fetch server state on visibility/focus to avoid constant polling
+  useEffect(() => {
+    let active = true;
+    let lastFetch = 0;
+    const minIntervalMs = 2000;
+
+    const mapBids = (
+      list: Array<{ user_id?: string; amount: number; timestamp?: string; created_at?: string }>
+    ): Array<{ username: string; amount: number; timestamp: string }> => {
+      return (list || [])
+        .slice(0, 20)
+        .map((bid: { user_id?: string; amount: number; timestamp?: string; created_at?: string }) => ({
+          username: bid.user_id === currentUserId ? "You" : bidderAliasForAuction({ auctionId: auction.auctionId, userId: bid.user_id }),
+          amount: bid.amount,
+          timestamp: bid.timestamp || bid.created_at || "now",
+        }));
+    };
+
+    const fetchState = async () => {
+      const now = Date.now();
+      if (now - lastFetch < minIntervalMs) return;
+      lastFetch = now;
+      try {
+        const resp = await api.get(`/api/auctions/${auction.auctionId}/state`);
+        if (!resp.ok) return;
+        const data = await apiJson<any>(resp);
+        if (!active) return;
+        if (typeof data?.participant_count === "number") {
+          setViewers(data.participant_count);
+        } else if (typeof data?.viewers === "number") {
+          setViewers(data.viewers);
+        }
+        if (Array.isArray(data?.recent_bids)) {
+          const mapped = mapBids(data.recent_bids);
+          setRecentBids(mapped);
+          persistRecentBids(mapped);
+        }
+      } catch {
+        // best-effort; ignore errors
+      }
+    };
+
+    const handleVisibility = () => {
+      if (document.visibilityState === "visible") {
+        fetchState();
+      }
+    };
+    const handleFocus = () => fetchState();
+
+    // Initial fetch on mount if visible
+    if (document.visibilityState === "visible") fetchState();
+    window.addEventListener("visibilitychange", handleVisibility);
+    window.addEventListener("focus", handleFocus);
+    return () => {
+      active = false;
+      window.removeEventListener("visibilitychange", handleVisibility);
+      window.removeEventListener("focus", handleFocus);
+    };
+  }, [auction.auctionId]);
 
   // Timer logic
   useEffect(() => {

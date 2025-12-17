@@ -58,6 +58,28 @@ export function ActiveListings() {
     };
   }, []);
 
+  // Local ticking countdown for time remaining
+  useEffect(() => {
+    const id = window.setInterval(() => {
+      setListings((prev) =>
+        prev.map((item) => {
+          if (typeof item.time_remaining_seconds === "number") {
+            const next = Math.max(0, item.time_remaining_seconds - 1);
+            return { ...item, time_remaining_seconds: next };
+          }
+          return item;
+        })
+      );
+    }, 1000);
+    return () => window.clearInterval(id);
+  }, []);
+
+  const isStatusEnded = (s?: string) => {
+    if (!s) return false;
+    const val = s.toLowerCase();
+    return val === "ended" || val === "closed";
+  };
+
   const fetchActiveListings = async (showLoader = true) => {
     try {
       if (showLoader) setLoading(true);
@@ -66,11 +88,26 @@ export function ActiveListings() {
       const response = await api.get('/api/auctions?status=live&limit=50&offset=0');
       const data = await apiJson<{ auctions: Listing[] }>(response);
 
+      const isEnded = (a: Listing) => {
+        if (isStatusEnded((a as any).status)) return true;
+        if (typeof a.time_remaining_seconds === "number") return a.time_remaining_seconds <= 0;
+        if (a.end_time) return new Date(a.end_time).getTime() <= Date.now();
+        return false;
+      };
+
       const filtered = (data.auctions || []).filter((a) => {
         if (!currentUserId) return true;
         return String(a.host_user_id || '') === currentUserId;
       });
-      setListings(filtered);
+
+      // Drop ended items from Active and notify sold list to refresh
+      const stillLive = filtered.filter((a) => !isEnded(a));
+      const endedFromLive = filtered.filter((a) => isEnded(a));
+      if (endedFromLive.length > 0) {
+        window.dispatchEvent(new CustomEvent("auction:ended"));
+      }
+
+      setListings(stillLive);
     } catch (err) {
       console.error('Error fetching active listings:', err);
       setError(err instanceof Error ? err.message : 'Failed to load listings');

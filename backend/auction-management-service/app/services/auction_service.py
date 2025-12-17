@@ -12,6 +12,7 @@ from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 from shared.database.connection import SessionLocal
 from shared.models.auction import Auction
+from shared.models.bid import Bid
 from shared.models.user import User
 from shared.redis.client import RedisHelper, RedisKeys
 from shared.schemas.auction_schemas import AuctionCreateRequest
@@ -401,5 +402,32 @@ class AuctionService:
                 "bid_count": int(state.get("bid_count") or 0),
                 "ended_at": auction.ended_at.isoformat() if auction.ended_at else None
             }
+        finally:
+            db.close()
+
+    def list_user_bids(self, user_id: str, limit: int = 50, offset: int = 0):
+        """Return bids for a given user ordered by newest first, joining auctions for title/image/status."""
+        db = SessionLocal()
+        try:
+            query = (
+                db.query(Bid, Auction)
+                .join(Auction, Auction.auction_id == Bid.auction_id)
+                .filter(Bid.user_id == user_id)
+                .order_by(Bid.created_at.desc())
+                .limit(limit)
+                .offset(offset)
+            )
+            results = []
+            for bid, auction in query.all():
+                results.append({
+                    "bid_id": str(bid.bid_id),
+                    "auction_id": str(bid.auction_id),
+                    "title": auction.title if auction else None,
+                    "image_url": auction.image_url if auction else None,
+                    "amount": float(bid.amount),
+                    "created_at": bid.created_at.isoformat() if bid.created_at else "",
+                    "status": auction.status if auction else None,
+                })
+            return results
         finally:
             db.close()

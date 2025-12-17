@@ -8,6 +8,7 @@ import { AuthPage } from "./components/AuthPage";
 import { RequireAuth } from "./auth/RequireAuth";
 import { useAuth } from "./auth/AuthProvider";
 import { AuctionRoomPage } from "./pages/AuctionRoomPage";
+import { MyBids } from "./components/MyBids";
 
 const ProtectedAppShell: React.FC = () => {
   const { logout } = useAuth();
@@ -28,21 +29,7 @@ const ProtectedAppShell: React.FC = () => {
         <BuyPage onAuctionClick={(id) => navigate(`/auction/${id}`)} />
       )}
       {activeTab === "sell" && <SellDashboard />}
-      {activeTab === "my-bids" && (
-        <div className="pt-[137px] max-w-[1600px] mx-auto px-6 py-16">
-          <div className="text-center">
-            <h2 className="mb-2">My Bids</h2>
-            <p className="text-muted-foreground">
-              Track all your active and past bids
-            </p>
-            <div className="mt-8 p-12 bg-white rounded-lg border border-border">
-              <p className="text-muted-foreground">
-                You haven&apos;t placed any bids yet
-              </p>
-            </div>
-          </div>
-        </div>
-      )}
+      {activeTab === "my-bids" && <MyBids />}
 
       <footer className="border-t border-border mt-16">
         <div className="max-w-[1600px] mx-auto px-6 py-8">

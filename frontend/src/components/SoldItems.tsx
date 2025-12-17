@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { CheckCircle2 } from 'lucide-react';
 import { api, apiJson } from '../utils/api';
 import { useAuth } from '../auth/AuthProvider';
@@ -20,6 +21,7 @@ interface SoldItem {
 export function SoldItems() {
   const { user } = useAuth();
   const currentUserId = useMemo(() => user?.sub ? String(user.sub) : null, [user?.sub]);
+  const navigate = useNavigate();
   const [soldItems, setSoldItems] = useState<SoldItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -46,13 +48,16 @@ export function SoldItems() {
       if (isInitial) setLoading(true);
       setError(null);
       
-      // We fetch closed auctions. 
-      // Note: Ensure your ActiveListings.tsx is fetching status=live to prevent duplicates.
-      const response = await api.get('/api/auctions?status=closed&limit=50&offset=0');
+      // Fetch all auctions and filter to closed/ended for this host (or all if host id missing)
+      const response = await api.get('/api/auctions?limit=200&offset=0');
       const data = await apiJson<{ auctions: SoldItem[] }>(response);
       
       const filtered = (data.auctions || []).filter((a) => {
+        const status = (a.status || '').toLowerCase();
+        const isEnded = status === 'closed' || status === 'ended';
+        if (!isEnded) return false;
         if (!currentUserId) return true;
+        if (!a.host_user_id) return true;
         return String(a.host_user_id || '') === currentUserId;
       });
       setSoldItems(filtered);
@@ -91,7 +96,8 @@ export function SoldItems() {
           soldItems.map((item) => (
             <div
               key={item.auction_id}
-              className="grid grid-cols-12 gap-4 px-6 py-4 border-b border-border last:border-b-0 hover:bg-secondary/20 transition-colors"
+              onClick={() => navigate(`/auction/${item.auction_id}`)}
+              className="grid grid-cols-12 gap-4 px-6 py-4 border-b border-border last:border-b-0 hover:bg-secondary/20 transition-colors cursor-pointer"
             >
               {/* Item Info */}
               <div className="col-span-6 flex items-center gap-4">

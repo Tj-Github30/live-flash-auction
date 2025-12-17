@@ -6,6 +6,7 @@ from pydantic import ValidationError
 from sqlalchemy.exc import SQLAlchemyError
 from shared.auth.cognito import require_auth
 from shared.schemas.auction_schemas import AuctionCreateRequest, AuctionCreateResponse, AuctionResponse
+from shared.schemas.bid_schemas import BidListResponse
 from app.services.auction_service import AuctionService
 from shared.utils.errors import AuctionError
 from shared.utils.logger import setup_logger
@@ -180,3 +181,19 @@ def close_auction(auction_id: str):
     except Exception as e:
         logger.error(f"Error closing auction: {e}", exc_info=True)
         return jsonify({"error": "Failed to close auction"}), 500
+
+
+@bp.route("/bids", methods=["GET"])
+@require_auth
+def list_user_bids():
+    """List bids placed by the authenticated user."""
+    try:
+        user_id = request.user_id
+        limit = int(request.args.get("limit", 50))
+        offset = int(request.args.get("offset", 0))
+
+        bids = auction_service.list_user_bids(user_id=user_id, limit=limit, offset=offset)
+        return jsonify({"bids": bids}), 200
+    except Exception as e:
+        logger.error(f"Error listing bids: {e}", exc_info=True)
+        return jsonify({"error": "Failed to list bids"}), 500
