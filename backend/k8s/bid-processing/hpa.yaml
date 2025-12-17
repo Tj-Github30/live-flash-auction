@@ -10,7 +10,7 @@ spec:
     kind: Deployment
     name: bid-processing-service
   minReplicas: 3
-  maxReplicas: 15
+  maxReplicas: 4
   metrics:
   - type: Resource
     resource:

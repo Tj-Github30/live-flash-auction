@@ -230,6 +230,7 @@ class ConnectionHandler:
             "auction_id": auction_id,
             "status": state.get("status"),
             "current_high_bid": float(state.get("current_high_bid", 0)),
+            "high_bidder_id": state.get("high_bidder_id") or None,
             "high_bidder_username": state.get("high_bidder_username"),
             "participant_count": int(state.get("participant_count", 0)),
             "bid_count": int(state.get("bid_count", 0)),

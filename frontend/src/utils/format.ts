@@ -33,4 +33,40 @@ export function formatCurrency(amount: number, opts?: { decimals?: number }): st
   });
 }
 
+export function formatUsernameForDisplay(username: string | null | undefined): string {
+  const value = (username || "").trim();
+  if (!value) return "Unknown";
+
+  // If it looks like a UUID (Cognito often uses UUID-like usernames), shorten it.
+  if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value)) {
+    return `${value.slice(0, 8)}…${value.slice(-4)}`;
+  }
+
+  // Otherwise, just cap length to keep the UI tidy.
+  if (value.length > 18) return `${value.slice(0, 16)}…`;
+  return value;
+}
+
+function fnv1a32(input: string): number {
+  // FNV-1a 32-bit hash
+  let hash = 0x811c9dc5;
+  for (let i = 0; i < input.length; i++) {
+    hash ^= input.charCodeAt(i);
+    hash = Math.imul(hash, 0x01000193);
+  }
+  return hash >>> 0;
+}
+
+export function bidderAliasForAuction(opts: {
+  auctionId: string;
+  userId: string | null | undefined;
+}): string {
+  const userId = (opts.userId || "").trim();
+  if (!userId) return "Bidder";
+  // Stable per auction, not linkable across auctions (auctionId is part of the input).
+  const h = fnv1a32(`${opts.auctionId}:${userId}`);
+  const code = h.toString(36).toUpperCase().padStart(4, "0").slice(0, 4);
+  return `Bidder ${code}`;
+}
+
 
