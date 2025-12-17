@@ -14,10 +14,13 @@ class AuctionCreateRequest(BaseModel):
     duration: int = Field(..., gt=0, description="Duration in seconds")
     category: Optional[str] = Field(None, max_length=100)
     starting_bid: Decimal = Field(..., gt=0, description="Starting bid amount")
+    seller_name: str = Field(..., min_length=1, max_length=100)
+    condition: str = Field(..., min_length=1, max_length=100) 
     
     # --- ADDED: Support for images ---
     image_url: Optional[str] = Field(None, description="Main image URL or Base64 string")
     images: Optional[List[str]] = Field(default=[], description="List of all auction images")
+
 
     @validator("starting_bid")
     def validate_starting_bid(cls, v):
@@ -53,10 +56,12 @@ class AuctionResponse(BaseModel):
     winner_id: Optional[str] = None
     winning_bid: Optional[Decimal] = None
     ended_at: Optional[str] = None
+    condition:Optional[str] = None
     
     # --- ADDED: Return images to frontend ---
+    seller_name: str
+    images: Optional[List[str]] = None
     image_url: Optional[str] = None
-    images: Optional[List[str]] = []
 
     class Config:
         from_attributes = True

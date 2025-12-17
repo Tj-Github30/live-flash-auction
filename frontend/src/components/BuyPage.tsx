@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { FiltersBar } from './FiltersBar';
 import { AuctionCard } from './AuctionCard';
 import { api, apiJson } from '../utils/api';
@@ -35,23 +35,60 @@ export function BuyPage({ onAuctionClick }: BuyPageProps) {
   const [error, setError] = useState<string | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
 
-  useEffect(() => {
-    fetchAuctions();
+  // 1. Optimized Fetch: Added 'showLoader' param to prevent flickering
+  const fetchAuctions = useCallback(async (showLoader = false) => {
+    try {
+      if (showLoader) setLoading(true);
+      setError(null);
+      
+      const liveParams = new URLSearchParams({ status: 'live', limit: '50', offset: '0' });
+      const closedParams = new URLSearchParams({ status: 'closed', limit: '50', offset: '0' });
+      
+      if (selectedCategory) {
+        liveParams.append('category', selectedCategory);
+        closedParams.append('category', selectedCategory);
+      }
+
+      const [liveResp, closedResp] = await Promise.all([
+        api.get(`/api/auctions?${liveParams.toString()}`),
+        api.get(`/api/auctions?${closedParams.toString()}`),
+      ]);
+      
+      const liveData = await apiJson<{ auctions: Auction[] }>(liveResp);
+      const closedData = await apiJson<{ auctions: Auction[] }>(closedResp);
+
+      const live = liveData.auctions || [];
+      const closed = closedData.auctions || [];
+
+      const stillLive = live.filter((a) => (a.time_remaining_seconds ?? 1) > 0);
+      const endedFromLive = live.filter((a) => (a.time_remaining_seconds ?? 1) <= 0);
+
+      setLiveAuctions(stillLive);
+      setEndedAuctions([...endedFromLive, ...closed]);
+    } catch (err) {
+      console.error('Error fetching auctions:', err);
+      setError(err instanceof Error ? err.message : 'Failed to load auctions');
+    } finally {
+      setLoading(false);
+    }
   }, [selectedCategory]);
 
+  // 2. Initial load and Category changes
   useEffect(() => {
-    const handler = () => fetchAuctions();
+    fetchAuctions(true);
+  }, [fetchAuctions]);
+
+  // 3. Listen for NEW auctions (No interval needed!)
+  useEffect(() => {
+    const handler = () => fetchAuctions(false); // Fetch silently in background
     window.addEventListener("auction:created", handler as EventListener);
-    // Keep lists fresh (time remaining + auto-drop ended auctions from "live" view)
-    const id = window.setInterval(fetchAuctions, 5_000);
+    
     return () => {
       window.removeEventListener("auction:created", handler as EventListener);
-      window.clearInterval(id);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedCategory]);
+  }, [fetchAuctions]);
 
-  // Local 1s tick so timers/countdowns stay live between network refreshes.
+  // 4. Local Timer Tick: Keeps UI moving every second without network hits
   useEffect(() => {
     const tick = window.setInterval(() => {
       let newlyEnded: Auction[] = [];
@@ -60,6 +97,7 @@ export function BuyPage({ onAuctionClick }: BuyPageProps) {
         for (const a of prev) {
           const hasTimer = typeof a.time_remaining_seconds === "number";
           const nextSeconds = hasTimer ? Math.max(0, (a.time_remaining_seconds as number) - 1) : undefined;
+          
           if (hasTimer && nextSeconds === 0) {
             newlyEnded.push({ ...a, time_remaining_seconds: 0, status: "closed" });
           } else {
@@ -80,56 +118,18 @@ export function BuyPage({ onAuctionClick }: BuyPageProps) {
     return () => window.clearInterval(tick);
   }, []);
 
-  const fetchAuctions = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      
-      const liveParams = new URLSearchParams({ status: 'live', limit: '50', offset: '0' });
-      const closedParams = new URLSearchParams({ status: 'closed', limit: '50', offset: '0' });
-      
-      if (selectedCategory) {
-        liveParams.append('category', selectedCategory);
-        closedParams.append('category', selectedCategory);
-      }
-
-      const [liveResp, closedResp] = await Promise.all([
-        api.get(`/api/auctions?${liveParams.toString()}`),
-        api.get(`/api/auctions?${closedParams.toString()}`),
-      ]);
-      const liveData = await apiJson<{ auctions: Auction[] }>(liveResp);
-      const closedData = await apiJson<{ auctions: Auction[] }>(closedResp);
-
-      const live = liveData.auctions || [];
-      const closed = closedData.auctions || [];
-
-      // Some auctions may still be marked "live" in DB but have 0 seconds left in Redis.
-      const stillLive = live.filter((a) => (a.time_remaining_seconds ?? 1) > 0);
-      const endedFromLive = live.filter((a) => (a.time_remaining_seconds ?? 1) <= 0);
-
-      setLiveAuctions(stillLive);
-      setEndedAuctions([...endedFromLive, ...closed]);
-    } catch (err) {
-      console.error('Error fetching auctions:', err);
-      setError(err instanceof Error ? err.message : 'Failed to load auctions');
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const handleFilterChange = (category: string | null) => {
     setSelectedCategory(category);
   };
 
-  // Format auction data for AuctionCard component
   const formatAuctionForCard = (auction: Auction) => {
-    const timeRemaining =
-      auction.status === "closed"
+    const isClosed = auction.status === "closed" || (auction.time_remaining_seconds ?? 0) <= 0;
+    const timeRemaining = isClosed
         ? "Ended"
         : formatTimeRemaining(auction.time_remaining_seconds ?? null);
 
     const winnerName = auction.winner_username || auction.high_bidder_username;
-    const showWinnerLine = timeRemaining === "Ended" && !!winnerName;
+    const showWinnerLine = isClosed && !!winnerName;
 
     return {
       id: auction.auction_id,
@@ -149,64 +149,58 @@ export function BuyPage({ onAuctionClick }: BuyPageProps) {
       <div className="max-w-[1600px] mx-auto px-6 py-8">
         <div className="mb-6">
           <h2 className="text-foreground mb-1">Live Auctions</h2>
-          <p className="text-muted-foreground">
-            {loading ? 'Loading...' : `${liveAuctions.length} items currently live`}
+          <p className="text-muted-foreground text-sm">
+            {loading ? 'Refreshing...' : `${liveAuctions.length} items currently live`}
           </p>
         </div>
 
         {error && (
-          <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg text-red-800">
+          <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg text-red-800 text-sm">
             {error}
           </div>
         )}
 
-        {loading ? (
+        {loading && liveAuctions.length === 0 ? (
           <div className="text-center py-16">
+            <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
             <p className="text-muted-foreground">Loading auctions...</p>
           </div>
         ) : liveAuctions.length === 0 ? (
-          <div className="text-center py-16">
-            <p className="text-muted-foreground">No live auctions available</p>
+          <div className="text-center py-16 border-2 border-dashed border-gray-100 rounded-2xl">
+            <p className="text-muted-foreground font-medium">No live auctions available</p>
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-            {liveAuctions.map((auction) => {
-              const cardData = formatAuctionForCard(auction);
-              return (
-                <AuctionCard 
-                  key={auction.auction_id} 
-                  {...cardData} 
-                  onClick={() => onAuctionClick(auction.auction_id)}
-                />
-              );
-            })}
+            {liveAuctions.map((auction) => (
+              <AuctionCard 
+                key={auction.auction_id} 
+                {...formatAuctionForCard(auction)} 
+                onClick={() => onAuctionClick(auction.auction_id)}
+              />
+            ))}
           </div>
         )}
 
-        {/* Ended Auctions */}
-        <div className="mt-12 mb-6">
+        <div className="mt-16 mb-6">
           <h2 className="text-foreground mb-1">Ended Auctions</h2>
-          <p className="text-muted-foreground">
-            {loading ? 'Loading...' : `${endedAuctions.length} items ended`}
+          <p className="text-muted-foreground text-sm">
+            Recent completions
           </p>
         </div>
 
-        {loading ? null : endedAuctions.length === 0 ? (
-          <div className="text-center py-10">
-            <p className="text-muted-foreground">No ended auctions yet</p>
+        {endedAuctions.length === 0 ? (
+          <div className="text-center py-10 opacity-50">
+            <p className="text-muted-foreground text-sm">No recently ended auctions</p>
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-            {endedAuctions.map((auction) => {
-              const cardData = formatAuctionForCard({ ...auction, status: "closed" });
-              return (
-                <AuctionCard
-                  key={`ended-${auction.auction_id}`}
-                  {...cardData}
-                  onClick={() => onAuctionClick(auction.auction_id)}
-                />
-              );
-            })}
+            {endedAuctions.map((auction) => (
+              <AuctionCard
+                key={`ended-${auction.auction_id}`}
+                {...formatAuctionForCard({ ...auction, status: "closed" })}
+                onClick={() => onAuctionClick(auction.auction_id)}
+              />
+            ))}
           </div>
         )}
       </div>

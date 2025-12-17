@@ -51,11 +51,7 @@ export function AuctionCard({ image, topLine, title, currentBid, timeRemaining, 
             e.stopPropagation();
             setIsWatchlisted(!isWatchlisted);
           }}
-          className="absolute top-3 right-3 p-2 bg-white/95 backdrop-blur-sm rounded-full hover:bg-white transition-colors"
         >
-          <Heart 
-            className={`w-4 h-4 ${isWatchlisted ? 'fill-accent text-accent' : 'text-foreground'}`}
-          />
         </button>
 
         {/* Viewers */}

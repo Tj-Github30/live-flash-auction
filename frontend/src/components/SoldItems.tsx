@@ -29,24 +29,27 @@ export function SoldItems() {
 
   useEffect(() => {
     const handler = () => fetchSoldItems();
+    // Listen for the custom event when an auction finishes
     window.addEventListener("auction:ended", handler as EventListener);
-    const id = window.setInterval(fetchSoldItems, 15_000);
+    
+    // Initial fetch
+    fetchSoldItems();
+
     return () => {
       window.removeEventListener("auction:ended", handler as EventListener);
-      window.clearInterval(id);
+      // Interval removed to prevent unnecessary background fetches
     };
   }, []);
-
-  const fetchSoldItems = async () => {
+  const fetchSoldItems = async (isInitial = false) => {
     try {
-      setLoading(true);
+      if (isInitial) setLoading(true);
       setError(null);
       
+      // We fetch closed auctions. 
+      // Note: Ensure your ActiveListings.tsx is fetching status=live to prevent duplicates.
       const response = await api.get('/api/auctions?status=closed&limit=50&offset=0');
       const data = await apiJson<{ auctions: SoldItem[] }>(response);
       
-      // Filter to only show auctions created by current user
-      // Note: Backend should ideally support filtering by host_user_id
       setSoldItems(data.auctions || []);
     } catch (err) {
       console.error('Error fetching sold items:', err);

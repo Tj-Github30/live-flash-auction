@@ -1,0 +1,510 @@
+.inside_chatTabImage {
+	height: auto !important;
+}
+
+.chatPaneOpen  #insideChatFrame {
+	transition: transform 0.2s ease 0s !important;
+}
+
+/* adjust chat pane position based on website's popup */
+#insideChatFrame {
+  margin-top: calc(-1 * var(--qubit-popup-height,0px)) !important;
+}
+
+/* Gucci custom css for chat theme (v2) */
+body.cookie-banner-visible #inside_custom_tab_holder,
+body.cookie-banner-visible #inside_holder {
+  z-index: 0 !important;
+}
+
+#inside_holder:not([chatpaneversion="1"]) #inside_tabs #inside_liveChatTab,
+#inside_holder.liveShowOpen + #inside_custom_tab_holder {
+  display: none !important;
+}
+
+@media only screen and (max-width: 415px) {
+  div#cts-tab {
+    width: calc(100% - 34px) !important;
+  }
+}
+
+div#cts-tab div img { 
+  width: 20px !important;
+  height: 20px !important;
+  z-index: 1000;
+}
+
+/* set maximum chat pane height on desktop & tablet */
+#inside_holder.chatPaneOpen:not([device="2"]):not(.videoChat) #insideChatFrame {
+    max-height: calc(100vh - 160px) !important;
+}
+#inside_holder.chatPaneOpen:not([device="2"]).videoChat #insideChatFrame {
+  min-height: var(--inside-video-height, 0) !important;
+}
+
+/* custom tabs */
+#inside_holder.chatPaneMinimised + #inside_custom_tab_holder,
+#inside_holder.chatPaneOpen + #inside_custom_tab_holder,
+#inside_holder.videoChat + #inside_custom_tab_holder,
+#inside_holder.hideTabs:not(.activeChat):not(.notificationMode) + #inside_custom_tab_holder,
+#inside_holder:not(.notificationMode) + #inside_custom_tab_holder .inside_customNotification,
+#inside_holder:not(.notificationMode) + #inside_custom_tab_holder .inside_customNotificationDot{
+  display: none !important;
+}
+#inside_holder.notificationMode #insideChatFrame {
+  top: 200vh !important;
+}
+#inside_holder.videoChat.chatPaneMinimised  #inside_tabs #inside_liveChatTab,
+#inside_holder.videoChat.mobile-device  #inside_tabs #inside_liveChatTab {
+  display: block !important;
+  right: 73px !important;
+  width: 73px !important;
+}
+#inside_custom_tab_holder{
+  position: fixed;
+  bottom: 0;
+  width: 100%;
+  height: 0;
+  z-index: 9999;
+  visibility: visible !important;
+}
+/* #inside_holder.cookie-banner-visible + #inside_custom_tab_holder {
+  z-index: 0;
+} */
+#inside_custom_tabs {
+  bottom: calc(48px + var(--qubit-popup-height, 0px));
+  right: 36px;
+  position: fixed;
+  pointer-events: none;
+  filter: drop-shadow(4px 4px 4px rgba(0,0,0,0.2));
+  margin-top: var(--data-move-y);
+  margin-left: var(--data-move-x);
+  transform: translate(var(--data-move-x), var(--data-move-y));
+}
+.expanded #inside_custom_tabs {
+  min-width: 372px;
+}
+.inside_chatBubble {
+  position: relative;
+  cursor: pointer;
+  opacity: 0;
+  pointer-events: none;
+  outline: none;
+  text-align: center;
+  display: none;
+  justify-content: flex-end;
+  align-items: center;
+  background: #FAFAFA;
+  border-radius: 100px;
+  height: 55px;
+  box-shadow: 0px 9px 8px rgba(0, 0, 0, 0.45);
+  margin-bottom: 9px;
+  padding: 0 16px 0 12px;
+}
+.chatAvailable.expanded:not(.connecting-video) #inside_chatTab /*, .videoAvailable.expanded #inside_videoTab */ {
+  display: flex;  
+}
+.mobile-device .inside_chatBubble {
+  transform: translateX(calc(var(--data-move-x) * -1));
+}
+.inside_chatBubble.loading {
+    background-repeat: no-repeat;
+    background-position: calc(100% - 5px) 50%;
+    background-image: url(https://us5-cdn.inside-graph.com//custom/1-spinner.gif?1704087281677);
+    background-size: 53px;
+}
+.mobile-device .inside_chatBubble.loading {
+  background-position: 9px 50%;
+  background-size: 45px;
+}
+.inside_chatBubble.loading svg {
+    opacity: 0;
+}
+#inside_custom_tab_holder:not(.videoAvailable) #inside_videoTab,
+#inside_custom_tab_holder:not(.chatAvailable) #inside_chatTab{
+  display: none;
+}
+#inside_genericTab {
+  width: 67px;
+  margin-left: auto;
+  cursor: pointer;
+  position: relative;
+  display: none;
+  justify-content: flex-end;
+  align-items: center;
+  opacity: 0;
+  pointer-events: none;
+  filter: drop-shadow(0px 9.02079px 8.01848px rgba(0, 0, 0, 0.45));
+  outline: none;
+}
+.chatAvailable #inside_genericTab /*, .videoAvailable #inside_genericTab */ {
+  display: flex;
+}
+#inside_genericTab .close {
+  position: absolute;
+  top: 0;
+  right: 0;
+  opacity: 0;
+  transition: opacity 0.2s linear;
+}
+#inside_removeTabs {
+  position: absolute;
+  top: -13px;
+  right: 0px;
+  background: white;
+  border-radius: 50%;
+  width: 26px;
+  height: 26px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: opacity 0.2s linear;
+  box-shadow: 0 9px 18px 0 rgb(82 97 115 / 18%);
+  pointer-events: none;
+  opacity: 0;
+  z-index: 1;
+}
+#inside_genericTab:hover #inside_removeTabs,
+#inside_holder.mobile-device + #inside_custom_tab_holder #inside_removeTabs {
+  opacity: 1;
+  pointer-events: auto;
+}
+#inside_removeTabs svg {
+  width: 10px;
+}
+.chatAvailable #inside_genericTab,
+.videoAvailable #inside_genericTab,
+.expanded #inside_genericTab .close,
+.chatAvailable.expanded:not(.connecting-video) #inside_chatTab, 
+.videoAvailable.expanded #inside_videoTab,
+#inside_holder.notificationMode:not(.mobile-device) + #inside_custom_tab_holder .inside_customNotification {
+  opacity: 1;
+  transition: opacity 0.2s linear;
+  pointer-events: auto;
+}
+#inside_holder.notificationMode + #inside_custom_tab_holder .inside_customNotification {
+  display: flex;
+}
+.inside_chatBubble label {
+  font-family: "Gucci Sans Pro", GucciSans,Helvetica,Arial,sans-serif;
+  font-style: normal;
+  font-weight: normal;
+  font-size: 16px;
+  line-height: 20px;
+  text-align: left;
+  letter-spacing: -.64px;
+  color: #1B1B1B;
+  align-items: center;
+  padding: 0 12px;
+  box-sizing: border-box;
+  top: 0;
+  left: 0;
+  width: 100%;
+  max-width: 312px;
+  flex-wrap: wrap;
+  cursor: pointer;
+  text-overflow: ellipsis;
+  -webkit-line-clamp: 2;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+#inside_videoTab label a {
+  text-decoration: underline;
+}
+
+/* position the chat notification above any qubit lightbox popups*/
+iframe#insideChatFrame.notificationMode {
+    transform: translateY(calc(16px - calc(16px + var(--qubit-popup-height, 0px)))) !important;
+}
+
+/* chat tab/bubble animations */
+.inside_customNotificationDot {
+  background: #00B833;
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  animation: inside-pulse 3s infinite ease-in-out;
+	font-style: normal;
+}
+.inside_customNotification {
+  animation: inside-slide-in-right 1s ease;
+}
+.inside_customNotification.slide-out-right {
+  animation: inside-slide-out-right 4s ease;
+}
+#inside_genericTab {
+  animation: inside-bounce-in-right 1s ease;
+}
+
+#inside_genericTab svg, #inside_genericTab .wave {
+  transition: filter .1s linear;
+}
+body:not(.search-scroll-disabled) #inside_genericTab.inverse svg, 
+body:not(.search-scroll-disabled) #inside_genericTab.inverse .wave {
+  filter: invert(1);
+}
+body:not(.search-scroll-disabled) #inside_genericTab.inverse {
+  filter: drop-shadow(0px 0px 8.01848px rgba(255, 255, 255, 0.45));
+}
+#inside_custom_tab_holder.stopAnimation #inside_genericTab,
+#inside_custom_tab_holder.stopAnimation #inside_genericTab svg *,
+.activeChat + #inside_custom_tab_holder #inside_genericTab svg *{
+  animation: none;
+}
+@keyframes inside-bounce-in-right {
+  0% {
+    opacity: 0;
+    transform: translateX(2000px);
+  }
+  60% {
+    opacity: 1;
+    transform: translateX(-20px);
+  }
+  80% { transform: translateX(10px); }
+  100% { transform: translateX(0); }
+}
+@keyframes inside-slide-in-right {
+  0% {
+    opacity: 0;
+    transform: translateX(2000px);
+  }
+  100% { transform: translateX(0); }
+}
+@keyframes inside-slide-out-right {
+  0% { transform: translateX(0); }
+  100% {
+    opacity: 0;
+    transform: translateX(2000px);
+  }
+}
+@keyframes inside-pulse {
+  0% { transform: scale(1); }
+  10% { transform: scale(0.8); }
+  20% { transform: scale(1.2); }
+  30% { transform: scale(1); }
+  100% { transform: scale(1); }
+}
+@keyframes inside-fadein {
+  0% { opacity: 0; }
+  100% { opacity: 1; }
+}
+
+/* mobile device */
+.mobile-device #inside_custom_tabs {
+  right: auto;
+  bottom: calc(42px + var(--qubit-popup-height, 0px));
+  left: 10px;
+  width: calc(100vw - 20px);
+  min-width: unset;
+}
+.mobile-device .inside_chatBubble {
+  flex-direction: row-reverse;
+  padding: 0 24px 0 16px;
+}
+.mobile-device .inside_customNotificationDot {
+  width: 12px;
+  height: 12px;
+}
+.mobile-device + #inside_custom_tab_holder.expanded {
+  height: 100%;
+}
+.mobile-device + #inside_custom_tab_holder.expanded #insideTabOverlay {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  background: rgba(3, 0, 0, 0.6);
+  z-index: -1;
+}
+.mobile-device + #inside_custom_tab_holder.expanded #inside_genericTab {
+  filter: invert(1);
+}
+.mobile-device + #inside_custom_tab_holder.expanded #inside_genericTab svg * {
+  animation: none;
+}
+.mobile-device + #inside_custom_tab_holder.expanded .inside_customNotificationDot,
+#inside_holder.notificationMode.mobile-device + #inside_custom_tab_holder .inside_chatBubble {
+  display: none;
+}
+#inside_holder.notificationMode.mobile-device + #inside_custom_tab_holder.expanded .inside_customNotification {
+  display: flex;
+  opacity: 1;
+  transition: opacity 0.2s linear;
+  pointer-events: auto;
+  animation-name: inside-slide-in-left;
+  animation: none;
+}
+.mobile-device #inside_custom_tabs #inside_genericTab {
+  margin-left: 0;
+  width: 40px;
+  justify-content: flex-start;
+  animation-name: inside-bounce-in-left;
+}
+@keyframes inside-bounce-in-left {
+  0% {
+    opacity: 0;
+    transform: translateX(-2000px);
+  }
+  60% {
+    opacity: 1;
+    transform: translateX(10px);
+  }
+  80% { transform: translateX(-5px); }
+  100% { transform: translateX(0); }
+}
+@keyframes inside-slide-in-left {
+  0% {
+    opacity: 0;
+    transform: translateX(-2000px);
+  }
+  100% { transform: translateX(0); }
+}
+
+/* new design April 2022 */
+.newDesign .inside_customNotificationDot {
+  background: #FE0F17;
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  width: 22px;
+  height: 22px;
+  line-height: 22px;
+  border-radius: 50%;
+  opacity: 0;
+  animation: inside-fadein 0.5s forwards ease-in-out;
+  color: white;
+  font-size: 13px;
+  font-weight: bold;
+  text-align: center;
+  text-indent: -1px;
+}
+.newDesign.mobile-device .inside_customNotificationDot {
+  top: -2px;
+  right: -2px;
+  width: 18px;
+  height: 18px;
+  line-height: 18px;
+  font-size: 11px;
+}
+.newDesign.mobile-device #inside_custom_tabs {
+  left: auto;
+  bottom: calc(42px + var(--qubit-popup-height, 0px));
+  transition: bottom 120ms linear;
+  right: 20px;
+  width: 50px;
+  min-width: unset;
+}
+.newDesign.mobile-device.expanded #inside_custom_tabs {
+  width: calc(100vw - 40px);  
+}
+.newDesign.mobile-device .inside_chatBubble {
+  flex-direction: row;
+  padding: 0 16px 0 12px;
+}
+.newDesign.mobile-device .inside_chatBubble label {
+  max-width: none;
+}
+.newDesign.mobile-device #inside_custom_tabs #inside_genericTab {
+  width: 50px;
+  margin-left: auto;
+  animation-name: inside-bounce-in-right;
+}
+.newDesign.mobile-device #inside_custom_tabs #inside_genericTab svg {
+  width: 50px;
+  height: 50px;
+}
+.newDesign #inside_genericTab svg g,
+.newDesign #inside_genericTab svg g path {
+  animation-iteration-count: 999;
+}
+.newDesign.mobile-device .inside_chatBubble.loading {
+  background-position: calc(100% - 5px) 50%;
+}
+/* wave animation css */
+.newDesign #inside_genericTab .wave {
+  position: absolute;
+  text-align: center;
+  display: none;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 98%;
+  justify-content: center;
+  align-items: center;
+}
+
+.newDesign #inside_genericTab.animateTabIcon .wave {
+  display: flex;
+}
+
+.newDesign #inside_genericTab.animateTabIcon svg>g {
+  display: none;
+}
+
+.newDesign #inside_genericTab .wave .dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  margin: 0 2px;
+  background: white;
+  animation: inside-wave 1.6s linear infinite;
+}
+
+.newDesign.mobile-device #inside_genericTab .wave .dot {
+  width: 7px;
+  height: 7px;
+  margin: 0 1px;
+  animation: inside-wave-mobile 1.6s linear infinite;
+}
+
+.newDesign #inside_genericTab .wave .dot:nth-child(2) {
+  animation-delay: -1.4s;
+}
+
+.newDesign #inside_genericTab .wave .dot:nth-child(3) {
+  animation-delay: -1.2s;
+}
+
+@keyframes inside-wave {
+
+  0%,
+  30%,
+  80%,
+  100% {
+    transform: initial;
+  }
+
+  50% {
+    transform: translateY(-10px);
+    background: #b4b4b4;
+  }
+}
+
+@keyframes inside-wave-mobile {
+
+  0%,
+  30%,
+  80%,
+  100% {
+    transform: initial;
+  }
+
+  50% {
+    transform: translateY(-7px);
+    background: #b4b4b4;
+  }
+}
+
+/* #41675 */
+body:not(.inside-chatv2-open) #inside_holder {
+  position: fixed !important;
+}
+
+/* #59310 */
+body.inside-chatv2-open .bxc.bx-base {
+  display: none !important;
+}
