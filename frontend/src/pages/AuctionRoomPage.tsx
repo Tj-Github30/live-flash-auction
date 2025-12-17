@@ -5,6 +5,7 @@ import { LiveAuctionRoom, AuctionData } from "../components/LiveAuctionRoom";
 import { useAuth } from "../auth/AuthProvider";
 import { api, apiJson } from "../utils/api";
 import { formatTimeRemaining } from "../utils/format";
+import { NO_IMAGE_DATA_URI } from "../utils/images";
 
 export const AuctionRoomPage: React.FC = () => {
   const { logout } = useAuth();
@@ -41,7 +42,7 @@ export const AuctionRoomPage: React.FC = () => {
         const formattedAuction: AuctionData = {
           id: auction.auction_id,
           auctionId: auction.auction_id,
-          image: auction.image_url || "https://via.placeholder.com/400x300?text=No+Image",
+          image: auction.image_url || NO_IMAGE_DATA_URI,
           title: auction.title,
           currentBid: state?.current_high_bid || auction.current_high_bid || auction.starting_bid,
           timeRemaining: formatTimeRemaining(state?.time_remaining || calculateTimeRemaining(auction.end_time)),
