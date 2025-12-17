@@ -212,7 +212,7 @@ export function BiddingPanel({
         <div className="px-4 py-3 border-b border-border">
           <h4 className="text-sm">Recent Bids</h4>
         </div>
-        <ScrollArea className="flex-1 px-4 py-2">
+        <ScrollArea className="flex-1 px-4 py-2 max-h-72">
           <div className="space-y-2">
             {formattedBids.length === 0 ? (
               isHost ? (
