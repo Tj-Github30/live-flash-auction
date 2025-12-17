@@ -125,7 +125,13 @@ export function SoldItems() {
                 <div className="w-8 h-8 rounded-full bg-secondary flex items-center justify-center">
                   <User className="w-4 h-4 text-muted-foreground" />
                 </div>
-                <span className="text-foreground">{item.high_bidder_username || 'N/A'}</span>
+                <span className="text-foreground">
+                  {item.high_bidder_username
+                    ? item.high_bidder_username.length > 18
+                      ? `${item.high_bidder_username.slice(0, 16)}…`
+                      : item.high_bidder_username
+                    : 'N/A'}
+                </span>
               </div>
             </div>
           ))

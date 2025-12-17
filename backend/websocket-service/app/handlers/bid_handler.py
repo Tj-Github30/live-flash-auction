@@ -42,6 +42,7 @@ class BidHandler:
                 "type": "bid_update",
                 "auction_id": auction_id,
                 "high_bid": current_high_bid,
+                "high_bidder_id": high_bidder_id,
                 "high_bidder_username": state.get("high_bidder_username"),
                 "top_bids": top_bids,
                 "bid_count": int(state.get("bid_count", 0)),

@@ -4,7 +4,7 @@ import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { ScrollArea } from './ui/scroll-area';
 import { api } from '../utils/api';
-import { formatCurrency, formatTimeRemaining } from '../utils/format';
+import { formatCurrency, formatTimeRemaining, bidderAliasForAuction } from '../utils/format';
 
 interface BiddingPanelProps {
   title: string;
@@ -12,9 +12,9 @@ interface BiddingPanelProps {
   timeRemaining: string;
   bidIncrement: number;
   auctionId: string;
-  recentBids?: Array<{ username: string; amount: number; timestamp: string }>;
-  currentUsername?: string;
-  highBidderUsername?: string;
+  recentBids?: Array<{ userId?: string; username?: string; amount: number; timestamp: string }>;
+  currentUserId?: string;
+  highBidderId?: string;
 }
 
 interface Bid {
@@ -32,8 +32,8 @@ export function BiddingPanel({
   bidIncrement,
   auctionId,
   recentBids = [],
-  currentUsername,
-  highBidderUsername
+  currentUserId,
+  highBidderId
 }: BiddingPanelProps) {
   const [customBid, setCustomBid] = useState('');
   const [isPlacingBid, setIsPlacingBid] = useState(false);
@@ -42,23 +42,19 @@ export function BiddingPanel({
   // Format recent bids
   const formattedBids: Bid[] = recentBids.map((bid, index) => ({
     id: `bid-${index}`,
-    username: bid.username,
+    username:
+      bid.userId && bid.userId === currentUserId
+        ? "You"
+        : bid.username ||
+          bidderAliasForAuction({ auctionId, userId: bid.userId }),
     amount: bid.amount,
     timestamp: bid.timestamp || 'now',
-    isYou: !!currentUsername && bid.username === currentUsername
+    isYou: !!currentUserId && !!bid.userId && bid.userId === currentUserId
   }));
   
-  const isWinning =
-    !!currentUsername &&
-    !!highBidderUsername &&
-    highBidderUsername === currentUsername;
-
-  const isOutbid =
-    !!currentUsername &&
-    !!highBidderUsername &&
-    highBidderUsername !== currentUsername;
-
-  const showNeutral = !highBidderUsername && formattedBids.length === 0;
+  const isWinning = !!currentUserId && !!highBidderId && highBidderId === currentUserId;
+  const isOutbid = !!currentUserId && !!highBidderId && highBidderId !== currentUserId;
+  const showNeutral = !highBidderId && formattedBids.length === 0;
 
   const handleQuickBid = async (amount: number) => {
     await placeBid(amount);

@@ -10,7 +10,7 @@ spec:
     kind: Deployment
     name: auction-management-service
   minReplicas: 2
-  maxReplicas: 8
+  maxReplicas: 4
   metrics:
   - type: Resource
     resource:
