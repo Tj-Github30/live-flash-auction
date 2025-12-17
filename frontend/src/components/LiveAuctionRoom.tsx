@@ -184,11 +184,16 @@ export function LiveAuctionRoom({ auction, onBack }: LiveAuctionRoomProps) {
     };
   }, [tokens?.idToken, auction.auctionId]);
 
-  // Poll server state periodically to keep viewer count accurate across clients
+  // Fetch server state on visibility/focus to avoid constant polling
   useEffect(() => {
     let active = true;
+    let lastFetch = 0;
+    const minIntervalMs = 2000;
 
     const fetchState = async () => {
+      const now = Date.now();
+      if (now - lastFetch < minIntervalMs) return;
+      lastFetch = now;
       try {
         const resp = await api.get(`/api/auctions/${auction.auctionId}/state`);
         if (!resp.ok) return;
@@ -199,17 +204,26 @@ export function LiveAuctionRoom({ auction, onBack }: LiveAuctionRoomProps) {
         } else if (typeof data?.viewers === "number") {
           setViewers(data.viewers);
         }
-      } catch (err) {
+      } catch {
         // best-effort; ignore errors
       }
     };
 
-    // Initial fetch and interval
-    fetchState();
-    const id = window.setInterval(fetchState, 5000);
+    const handleVisibility = () => {
+      if (document.visibilityState === "visible") {
+        fetchState();
+      }
+    };
+    const handleFocus = () => fetchState();
+
+    // Initial fetch on mount if visible
+    if (document.visibilityState === "visible") fetchState();
+    window.addEventListener("visibilitychange", handleVisibility);
+    window.addEventListener("focus", handleFocus);
     return () => {
       active = false;
-      window.clearInterval(id);
+      window.removeEventListener("visibilitychange", handleVisibility);
+      window.removeEventListener("focus", handleFocus);
     };
   }, [auction.auctionId]);
 

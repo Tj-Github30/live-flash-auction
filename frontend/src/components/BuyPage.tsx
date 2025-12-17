@@ -80,10 +80,32 @@ export function BuyPage({ onAuctionClick }: BuyPageProps) {
     fetchAuctions(true);
   }, [fetchAuctions]);
 
-  // Background refresh to keep counts/timers fresh (viewers + new items)
+  // Background refresh only on focus/visibility to reduce churn
   useEffect(() => {
-    const id = window.setInterval(() => fetchAuctions(false), 5000);
-    return () => window.clearInterval(id);
+    let lastFetch = 0;
+    const minIntervalMs = 2000;
+
+    const maybeFetch = () => {
+      const now = Date.now();
+      if (now - lastFetch < minIntervalMs) return;
+      lastFetch = now;
+      fetchAuctions(false);
+    };
+
+    const handleVisibility = () => {
+      if (document.visibilityState === "visible") {
+        maybeFetch();
+      }
+    };
+    const handleFocus = () => maybeFetch();
+
+    if (document.visibilityState === "visible") maybeFetch();
+    window.addEventListener("visibilitychange", handleVisibility);
+    window.addEventListener("focus", handleFocus);
+    return () => {
+      window.removeEventListener("visibilitychange", handleVisibility);
+      window.removeEventListener("focus", handleFocus);
+    };
   }, [fetchAuctions]);
 
   // 3. Listen for NEW auctions (No interval needed!)
