@@ -34,9 +34,7 @@ CREATE TABLE IF NOT EXISTS auctions (
     winner_id UUID REFERENCES users(user_id),
     winning_bid DECIMAL(10,2),
     ended_at TIMESTAMP WITH TIME ZONE,
-    ivs_channel_arn VARCHAR(255),
-    ivs_stream_key TEXT,
-    ivs_playback_url TEXT
+    image_url VARCHAR(2048)
 );
 
 -- Create indexes on auctions

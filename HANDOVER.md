@@ -56,7 +56,6 @@
 - ✅ SQS Queues
 - ✅ Lambda Functions
 - ✅ Cognito User Pool
-- ✅ IVS Enabled
 
 ---
 

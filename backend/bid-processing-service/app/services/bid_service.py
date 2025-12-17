@@ -5,9 +5,11 @@ from typing import Dict
 from decimal import Decimal
 from shared.redis.client import RedisHelper, RedisKeys, BID_COMPARISON_SCRIPT
 from shared.aws.sqs_client import sqs_client
-from shared.utils.errors import AuctionNotFoundError, AuctionClosedError, InvalidBidError
+from shared.utils.errors import AuctionNotFoundError, AuctionClosedError, InvalidBidError, ForbiddenError
 from shared.utils.helpers import get_current_timestamp_ms, calculate_time_remaining
 from shared.config.settings import settings
+from shared.database.connection import SessionLocal
+from shared.models.auction import Auction
 import logging
 import uuid
 
@@ -51,6 +53,26 @@ class BidService:
 
             if auction_state.get("status") != "live":
                 raise AuctionClosedError(auction_id)
+
+            # 1.5 Host cannot bid on their own auction (backend-enforced rule)
+            host_user_id = auction_state.get("host_user_id")
+            if not host_user_id:
+                # Backfill from DB for legacy auctions created before we stored host_user_id in Redis
+                db = SessionLocal()
+                try:
+                    auction = db.query(Auction).filter(Auction.auction_id == auction_id).first()
+                    if auction and auction.host_user_id:
+                        host_user_id = str(auction.host_user_id)
+                        # Cache in Redis for future bids
+                        try:
+                            self.redis_helper.update_auction_field(auction_id, "host_user_id", host_user_id)
+                        except Exception:
+                            pass
+                finally:
+                    db.close()
+
+            if host_user_id and str(host_user_id) == str(user_id):
+                raise ForbiddenError("Host cannot place bids on their own auction")
 
             # 2. Check if auction has ended (time-based)
             end_time_key = RedisKeys.auction_end_time(auction_id)

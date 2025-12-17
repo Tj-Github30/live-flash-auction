@@ -15,6 +15,7 @@ interface BiddingPanelProps {
   recentBids?: Array<{ userId?: string; username?: string; amount: number; timestamp: string }>;
   currentUserId?: string;
   highBidderId?: string;
+  isHost?: boolean;
 }
 
 interface Bid {
@@ -33,7 +34,8 @@ export function BiddingPanel({
   auctionId,
   recentBids = [],
   currentUserId,
-  highBidderId
+  highBidderId,
+  isHost = false
 }: BiddingPanelProps) {
   const [customBid, setCustomBid] = useState('');
   const [isPlacingBid, setIsPlacingBid] = useState(false);
@@ -69,6 +71,10 @@ export function BiddingPanel({
   };
 
   const placeBid = async (amount: number) => {
+    if (isHost) {
+      alert("Hosts cannot place bids on their own auctions.");
+      return;
+    }
     if (isPlacingBid || amount < nextMinBid) return;
     
     setIsPlacingBid(true);
@@ -137,12 +143,18 @@ export function BiddingPanel({
           Next minimum bid: ${nextMinBid.toLocaleString()}
         </p>
 
+        {isHost && (
+          <div className="mb-3 text-sm text-orange-800 bg-orange-50 border border-orange-200 rounded-md px-3 py-2">
+            You are the host. Hosts cannot place bids on their own auctions.
+          </div>
+        )}
+
         {/* Quick Bid Buttons */}
         <div className="grid grid-cols-2 gap-2 mb-3">
           <Button
             variant="outline"
             onClick={() => handleQuickBid(currentBid + bidIncrement)}
-            disabled={isPlacingBid}
+            disabled={isPlacingBid || isHost}
             className="h-10"
           >
             +${formatCurrency(bidIncrement)}
@@ -150,7 +162,7 @@ export function BiddingPanel({
           <Button
             variant="outline"
             onClick={() => handleQuickBid(currentBid + bidIncrement * 2)}
-            disabled={isPlacingBid}
+            disabled={isPlacingBid || isHost}
             className="h-10"
           >
             +${formatCurrency(bidIncrement * 2)}
@@ -167,6 +179,7 @@ export function BiddingPanel({
               onChange={(e) => setCustomBid(e.target.value)}
               placeholder="Custom amount"
               className="pl-7"
+              disabled={isHost}
             />
           </div>
         </div>
@@ -174,7 +187,7 @@ export function BiddingPanel({
         {/* Place Bid Button */}
         <Button
           onClick={handleCustomBid}
-          disabled={isPlacingBid || !customBid || parseFloat(customBid) < nextMinBid}
+          disabled={isHost || isPlacingBid || !customBid || parseFloat(customBid) < nextMinBid}
           className="w-full bg-accent hover:bg-accent/90 h-11"
         >
           {isPlacingBid ? 'Placing Bid...' : 'Place Bid'}

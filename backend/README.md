@@ -1,6 +1,6 @@
 # Live Flash Auction - Backend Services
 
-Real-time bidding platform with Flask-based microservices for live auctions with video streaming.
+Real-time bidding platform with Flask-based microservices for live auctions.
 
 ## Architecture
 
@@ -8,7 +8,6 @@ Real-time bidding platform with Flask-based microservices for live auctions with
 
 1. **Auction Management Service** (Port 8000)
    - Create and manage auctions
-   - AWS IVS channel creation
    - Auction metadata and CRUD operations
 
 2. **WebSocket Service** (Port 8001)
@@ -36,7 +35,6 @@ Real-time bidding platform with Flask-based microservices for live auctions with
 - **Cache/State**: Redis (auction state, pub/sub, leaderboards)
 - **Storage**: AWS DynamoDB (bid history)
 - **Queue**: AWS SQS (async processing)
-- **Video**: AWS IVS (live streaming)
 - **Auth**: AWS Cognito (JWT tokens)
 - **Orchestration**: Kubernetes (EKS)
 
@@ -324,9 +322,7 @@ status          VARCHAR(20) DEFAULT 'live'
 winner_id       UUID REFERENCES users
 winning_bid     DECIMAL(10,2)
 ended_at        TIMESTAMP
-ivs_channel_arn VARCHAR(255)
-ivs_stream_key  TEXT
-ivs_playback_url TEXT
+image_url       VARCHAR(2048)
 ```
 
 ## Deployment

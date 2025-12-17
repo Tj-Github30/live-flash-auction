@@ -78,7 +78,9 @@ def persist_bid(bid_data: dict) -> bool:
         # Prepare item
         item = {
             "auction_id": bid_data["auction_id"],
-            "timestamp#user_id": f"{bid_data['timestamp']}#{bid_data['user_id']}",
+            # Must match the DynamoDB sort key name created in ENTIRE_PHASE_GUIDELINES.md
+            # (Phase 6: `timestamp_user_id`).
+            "timestamp_user_id": f"{bid_data['timestamp']}#{bid_data['user_id']}",
             "bid_id": bid_data.get("bid_id", f"{bid_data['auction_id']}_{bid_data['timestamp']}"),
             "user_id": bid_data["user_id"],
             "username": bid_data["username"],

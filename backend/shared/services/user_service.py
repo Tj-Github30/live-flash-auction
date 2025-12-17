@@ -4,8 +4,10 @@ User Service - Synchronizes users from Cognito to PostgreSQL
 from typing import Optional, Dict
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
+from sqlalchemy import text
 from shared.database.connection import SessionLocal
 from shared.models.user import User
+from shared.models.auction import Auction
 from shared.utils.logger import setup_logger
 import uuid
 
@@ -110,16 +112,120 @@ class UserService:
             # earlier with a different UUID (legacy data/imports).
             existing_by_email = db.query(User).filter(User.email == email).first()
             if existing_by_email:
-                if self._apply_cognito_fields(existing_by_email, cognito_user_info, db):
-                    try:
-                        db.commit()
-                    except Exception:
-                        db.rollback()
-                logger.warning(
-                    f"User email already exists in DB; reusing existing user record for {email}. "
-                    f"DB user_id={existing_by_email.user_id} Cognito sub={user_uuid}"
-                )
-                return existing_by_email
+                # If legacy data exists where the same email is stored under a different UUID,
+                # we must reconcile it. Otherwise downstream writes that reference Cognito `sub`
+                # (like auction.host_user_id) will fail FK checks.
+                #
+                # Safe automated fix:
+                # - If the legacy user_id is NOT referenced by any auctions, delete the legacy row
+                #   and recreate the user with the Cognito `sub` as user_id.
+                # - If it IS referenced, perform an in-place migration:
+                #     - update auctions.host_user_id/winner_id from legacy_id -> cognito_sub
+                #     - update users.user_id from legacy_id -> cognito_sub
+                #   This preserves FK integrity and restores the invariant:
+                #     users.user_id == Cognito sub
+                if existing_by_email.user_id != user_uuid:
+                    legacy_id = existing_by_email.user_id
+                    hosted_count = db.query(Auction).filter(Auction.host_user_id == legacy_id).count()
+                    won_count = db.query(Auction).filter(Auction.winner_id == legacy_id).count()
+
+                    if hosted_count == 0 and won_count == 0:
+                        logger.warning(
+                            f"Legacy user row detected for email={email}. "
+                            f"Deleting legacy user_id={legacy_id} and recreating with Cognito sub={user_uuid}."
+                        )
+                        try:
+                            db.delete(existing_by_email)
+                            db.commit()
+                        except Exception as delete_err:
+                            db.rollback()
+                            logger.error(
+                                f"Failed to delete legacy user row for email={email}: {delete_err}",
+                                exc_info=True
+                            )
+                        else:
+                            # Proceed to create a fresh row using Cognito UUID
+                            existing_by_email = None
+                    else:
+                        logger.warning(
+                            f"Legacy user_id mismatch for email={email}. "
+                            f"Migrating legacy_id={legacy_id} -> cognito_sub={user_uuid} (including auctions references)."
+                        )
+                        try:
+                            # FK-safe migration strategy (non-deferrable FK):
+                            # 1) Rename legacy user's unique fields (email/username) so we can create the new row.
+                            # 2) Insert a new user row with user_id=cognito_sub and the real email/username.
+                            # 3) Update auctions host_user_id/winner_id to point to the new user_id.
+                            # 4) Delete the legacy user row.
+                            legacy_email = existing_by_email.email
+                            legacy_username = existing_by_email.username
+                            suffix = str(legacy_id)[:8]
+                            tmp_email = f"{legacy_email}.legacy.{suffix}"
+                            tmp_username = f"{legacy_username}_legacy_{suffix}"
+
+                            db.execute(
+                                text(
+                                    "UPDATE users SET email = :tmp_email, username = :tmp_username "
+                                    "WHERE user_id = :old_id"
+                                ),
+                                {"tmp_email": tmp_email, "tmp_username": tmp_username, "old_id": legacy_id},
+                            )
+
+                            # Insert the new user row with the Cognito sub as PK
+                            new_username = cognito_user_info.get("username") or legacy_username
+                            db.execute(
+                                text(
+                                    "INSERT INTO users (user_id, email, username, name, phone, is_verified) "
+                                    "VALUES (:new_id, :email, :username, :name, :phone, :is_verified)"
+                                ),
+                                {
+                                    "new_id": user_uuid,
+                                    "email": legacy_email,
+                                    "username": new_username,
+                                    "name": cognito_user_info.get("name") or existing_by_email.name,
+                                    "phone": cognito_user_info.get("phone") or existing_by_email.phone,
+                                    "is_verified": bool(cognito_user_info.get("email_verified", existing_by_email.is_verified)),
+                                },
+                            )
+
+                            # Re-point auctions to the new user_id (now FK-valid because user exists)
+                            db.execute(
+                                text("UPDATE auctions SET host_user_id = :new_id WHERE host_user_id = :old_id"),
+                                {"new_id": user_uuid, "old_id": legacy_id},
+                            )
+                            db.execute(
+                                text("UPDATE auctions SET winner_id = :new_id WHERE winner_id = :old_id"),
+                                {"new_id": user_uuid, "old_id": legacy_id},
+                            )
+
+                            # Remove legacy user row
+                            db.execute(
+                                text("DELETE FROM users WHERE user_id = :old_id"),
+                                {"old_id": legacy_id},
+                            )
+
+                            db.commit()
+                        except Exception as migrate_err:
+                            db.rollback()
+                            logger.error(
+                                f"Failed to migrate legacy user_id for email={email}: {migrate_err}",
+                                exc_info=True,
+                            )
+                        else:
+                            # Reload the user by the new PK
+                            existing_by_email = db.query(User).filter(User.user_id == user_uuid).first()
+
+                if existing_by_email:
+                    if self._apply_cognito_fields(existing_by_email, cognito_user_info, db):
+                        try:
+                            db.commit()
+                        except Exception:
+                            db.rollback()
+                    logger.warning(
+                        f"User email already exists in DB; reusing existing user record for {email}. "
+                        f"DB user_id={existing_by_email.user_id} Cognito sub={user_uuid}"
+                    )
+                    return existing_by_email
             
             # If username not provided, generate from email
             if not username:

@@ -23,9 +23,6 @@ class Auction(Base):
     winner_id = Column(GUID(), ForeignKey("users.user_id"))
     winning_bid = Column(DECIMAL(10, 2))
     ended_at = Column(DateTime(timezone=True))
-    ivs_channel_arn = Column(String(255))
-    ivs_stream_key = Column(Text)
-    ivs_playback_url = Column(Text)
     
     # --- ADDED: Image URL Support ---
     image_url = Column(String(2048), nullable=True)
@@ -34,7 +31,7 @@ class Auction(Base):
     host = relationship("User", foreign_keys=[host_user_id], backref="hosted_auctions")
     winner = relationship("User", foreign_keys=[winner_id], backref="won_auctions")
 
-    def to_dict(self, include_stream_key=False):
+    def to_dict(self):
         """Convert model to dictionary"""
         data = {
             "auction_id": str(self.auction_id),
@@ -49,16 +46,9 @@ class Auction(Base):
             "winner_id": str(self.winner_id) if self.winner_id else None,
             "winning_bid": float(self.winning_bid) if self.winning_bid else None,
             "ended_at": self.ended_at.isoformat() if self.ended_at else None,
-            "ivs_channel_arn": self.ivs_channel_arn,
-            "ivs_playback_url": self.ivs_playback_url,
             # --- ADDED: Return image to frontend ---
             "image_url": self.image_url
         }
-
-        # Only include stream key if explicitly requested (security)
-        if include_stream_key:
-            data["ivs_stream_key"] = self.ivs_stream_key
-
         return data
 
     def __repr__(self):

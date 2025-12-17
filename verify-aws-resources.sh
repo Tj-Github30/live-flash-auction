@@ -151,20 +151,7 @@ else
 fi
 echo ""
 
-echo "8. Checking IVS Permissions on EKS Node Role..."
-IVS_POLICY=$(aws iam list-attached-role-policies --role-name live-auction-eks-node-role \
-    --query 'AttachedPolicies[?contains(PolicyName, `IVS`)]' \
-    --output json 2>/dev/null)
-if [ "$IVS_POLICY" != "[]" ] && [ ! -z "$IVS_POLICY" ]; then
-    echo -e "${GREEN}✓${NC} IVS permissions found"
-    echo "$IVS_POLICY" | jq -r '.[] | "   \(.PolicyName)"'
-else
-    echo -e "${RED}✗${NC} IVS permissions not found on EKS node role"
-    echo "   Action needed: Attach 'AmazonIVSFullAccess' policy to 'live-auction-eks-node-role'"
-fi
-echo ""
-
-echo "9. Checking ECR Repositories..."
+echo "8. Checking ECR Repositories..."
 ECR_REPOS=$(aws ecr describe-repositories --region us-east-1 \
     --query 'repositories[?contains(repositoryName, `live-auction`) || contains(repositoryName, `auction`)].repositoryName' \
     --output text 2>/dev/null)
@@ -178,7 +165,7 @@ else
 fi
 echo ""
 
-echo "10. Checking Kubernetes Services..."
+echo "9. Checking Kubernetes Services..."
 if command -v kubectl &> /dev/null; then
     echo "   Checking if kubectl is configured..."
     if kubectl cluster-info &> /dev/null; then

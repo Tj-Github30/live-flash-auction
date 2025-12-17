@@ -32,6 +32,18 @@ export function BuyPage({ onAuctionClick }: BuyPageProps) {
     fetchAuctions();
   }, [selectedCategory]);
 
+  useEffect(() => {
+    const handler = () => fetchAuctions();
+    window.addEventListener("auction:created", handler as EventListener);
+    // Keep lists fresh (time remaining + auto-drop ended auctions from "live" view)
+    const id = window.setInterval(fetchAuctions, 10_000);
+    return () => {
+      window.removeEventListener("auction:created", handler as EventListener);
+      window.clearInterval(id);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedCategory]);
+
   const fetchAuctions = async () => {
     try {
       setLoading(true);

@@ -7,7 +7,7 @@ React + TypeScript frontend application for the Live Flash Auction platform. Bui
 This is the frontend application for a real-time flash auction platform where users can:
 - **Authenticate** via AWS Cognito (OTP-based login)
 - **Browse** live auctions
-- **Join** auction rooms with live video streaming (AWS IVS)
+- **Join** auction rooms with real-time updates
 - **Place bids** in real-time via WebSocket
 - **Chat** with other participants
 - **View** auction history and results
