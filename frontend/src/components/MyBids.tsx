@@ -10,6 +10,7 @@ interface Bid {
   auction_id: string;
   title?: string;
   image_url?: string;
+  gallery_images?: string[];
   amount: number;
   created_at: string;
   status?: string;
@@ -27,6 +28,23 @@ export function MyBids() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // Local live countdown for timers
+  useEffect(() => {
+    if (bids.length === 0) return;
+    const id = window.setInterval(() => {
+      setBids((prev) =>
+        prev.map((bid) => {
+          if (bid.time_remaining_seconds === null || bid.time_remaining_seconds === undefined) return bid;
+          return {
+            ...bid,
+            time_remaining_seconds: Math.max(0, bid.time_remaining_seconds - 1),
+          };
+        })
+      );
+    }, 1000);
+    return () => window.clearInterval(id);
+  }, [bids.length]);
+
   const loadBids = async () => {
     if (!userId) {
       setBids([]);
@@ -41,7 +59,22 @@ export function MyBids() {
         throw new Error(`Failed to load bids: ${resp.status}`);
       }
       const data = await apiJson<{ bids: Bid[] }>(resp);
-      setBids(data.bids || []);
+      const list = data.bids || [];
+      // Deduplicate by auction_id, keep the newest bid per auction
+      const deduped: Record<string, Bid> = {};
+      list.forEach((bid) => {
+        const existing = deduped[bid.auction_id];
+        if (!existing) {
+          deduped[bid.auction_id] = bid;
+          return;
+        }
+        const existingTime = new Date(existing.created_at || 0).getTime();
+        const currentTime = new Date(bid.created_at || 0).getTime();
+        if (currentTime >= existingTime) {
+          deduped[bid.auction_id] = bid;
+        }
+      });
+      setBids(Object.values(deduped));
     } catch (err: any) {
       console.error('Error loading bids:', err);
       setError(err?.message || 'Failed to load your bids');
@@ -55,15 +88,33 @@ export function MyBids() {
     loadBids();
   }, [userId]);
 
+  // Refresh on visibility/focus to keep viewers/timers closer to real-time
+  useEffect(() => {
+    const handleVisibility = () => {
+      if (document.visibilityState === "visible") loadBids();
+    };
+    const handleFocus = () => loadBids();
+    window.addEventListener("visibilitychange", handleVisibility);
+    window.addEventListener("focus", handleFocus);
+    return () => {
+      window.removeEventListener("visibilitychange", handleVisibility);
+      window.removeEventListener("focus", handleFocus);
+    };
+  }, [userId]);
+
   const formatBidForCard = (bid: Bid) => {
     const isClosed = bid.status === "closed" || (bid.time_remaining_seconds !== null && bid.time_remaining_seconds !== undefined && bid.time_remaining_seconds <= 0);
     const timeRemaining = isClosed
       ? "Ended"
       : formatTimeRemaining(bid.time_remaining_seconds ?? null);
+    const imageSrc =
+      bid.image_url && bid.image_url.trim() !== ""
+        ? bid.image_url
+        : (bid.gallery_images && bid.gallery_images.length > 0 && bid.gallery_images[0]) || 'https://via.placeholder.com/400x300?text=No+Image';
 
     return {
       id: bid.auction_id,
-      image: bid.image_url || 'https://via.placeholder.com/400x300?text=No+Image',
+      image: imageSrc,
       title: bid.title || 'Auction',
       currentBid: bid.current_high_bid || bid.starting_bid || bid.amount,
       timeRemaining: timeRemaining,

@@ -471,11 +471,25 @@ class AuctionService:
                 # Determine if auction is closed
                 is_closed = auction.status == 'closed' or (time_remaining_seconds is not None and time_remaining_seconds <= 0)
                 
+                # Safely resolve image URL (presign if needed)
+                image_url = None
+                try:
+                    image_url = self._presign_image_url(getattr(auction, "image_url", None)) or getattr(auction, "image_url", None)
+                except Exception:
+                    image_url = getattr(auction, "image_url", None)
+
+                gallery_images = []
+                try:
+                    gallery_images = getattr(auction, "gallery_images", []) or []
+                except Exception:
+                    gallery_images = []
+
                 results.append({
                     "bid_id": str(bid.bid_id),
                     "auction_id": auction_id,
                     "title": auction.title if auction else None,
-                    "image_url": auction.image_url if auction else None,
+                    "image_url": image_url,
+                    "gallery_images": gallery_images,
                     "amount": float(bid.amount),
                     "created_at": bid.created_at.isoformat() if bid.created_at else "",
                     "status": "closed" if is_closed else (auction.status or "live"),
