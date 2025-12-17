@@ -2,7 +2,7 @@
 Pydantic schemas for auction-related operations
 """
 from pydantic import BaseModel, Field, validator
-from typing import Optional
+from typing import Optional, List
 from datetime import datetime
 from decimal import Decimal
 
@@ -14,6 +14,10 @@ class AuctionCreateRequest(BaseModel):
     duration: int = Field(..., gt=0, description="Duration in seconds")
     category: Optional[str] = Field(None, max_length=100)
     starting_bid: Decimal = Field(..., gt=0, description="Starting bid amount")
+    
+    # --- ADDED: Support for images ---
+    image_url: Optional[str] = Field(None, description="Main image URL or Base64 string")
+    images: Optional[List[str]] = Field(default=[], description="List of all auction images")
 
     @validator("starting_bid")
     def validate_starting_bid(cls, v):
@@ -28,7 +32,9 @@ class AuctionCreateRequest(BaseModel):
                 "description": "Rare 1960s Rolex Submariner",
                 "duration": 3600,
                 "category": "Watches",
-                "starting_bid": 10000.00
+                "starting_bid": 10000.00,
+                "image_url": "https://example.com/watch.jpg",
+                "images": ["https://example.com/watch_1.jpg", "https://example.com/watch_2.jpg"]
             }
         }
 
@@ -48,6 +54,10 @@ class AuctionResponse(BaseModel):
     winning_bid: Optional[Decimal] = None
     ended_at: Optional[str] = None
     ivs_playback_url: Optional[str] = None
+    
+    # --- ADDED: Return images to frontend ---
+    image_url: Optional[str] = None
+    images: Optional[List[str]] = []
 
     class Config:
         from_attributes = True

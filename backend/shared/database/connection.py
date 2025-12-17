@@ -1,7 +1,7 @@
 """
 PostgreSQL database connection and session management
 """
-from sqlalchemy import create_engine, String, TypeDecorator
+from sqlalchemy import create_engine, String, TypeDecorator, text
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, scoped_session
 from sqlalchemy.dialects.postgresql import UUID as PostgresUUID
@@ -86,3 +86,16 @@ def get_db():
         yield db
     finally:
         db.close()
+
+
+# ==========================================================
+# AUTO-FIX: Automatically add the image_url column on startup
+# ==========================================================
+try:
+    with engine.connect() as conn:
+        conn.execute(text("ALTER TABLE auctions ADD COLUMN IF NOT EXISTS image_url VARCHAR(2048);"))
+        conn.commit()
+    print("✅ DATABASE SUCCESS: image_url column checked/added.")
+except Exception as e:
+    # This might fail if the table doesn't exist yet (first run), which is fine.
+    print(f"⚠️ Database check note: {e}")

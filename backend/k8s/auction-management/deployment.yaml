@@ -20,7 +20,7 @@ spec:
         image: 938041861431.dkr.ecr.us-east-1.amazonaws.com/live-auction/auction-management-service:latest
         ports:
         - containerPort: 8000
-        env:
+        env: 
         - name: DATABASE_URL
           valueFrom:
             secretKeyRef:
@@ -41,6 +41,8 @@ spec:
             secretKeyRef:
               name: auction-secrets
               key: cognito-app-client-id
+        - name: AWS_S3_BUCKET_NAME
+          value: "live-flash-auction-images" 
         - name: COGNITO_REGION
           value: "us-east-1"
         - name: AWS_REGION
