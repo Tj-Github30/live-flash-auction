@@ -32,12 +32,15 @@ class ConnectionHandler:
             # Extract and verify token
             token = args.get("token")
             if not token:
+                logger.warning(f"Connection rejected (missing token): {connection_id}")
                 emit("error", {"message": "Missing authentication token"})
                 return False
 
             # Verify Cognito token
             claims = cognito_auth.verify_token(token)
             if not claims:
+                # Don't log the full token; just log that verification failed.
+                logger.warning(f"Connection rejected (invalid/expired token): {connection_id}")
                 emit("error", {"message": "Invalid or expired token"})
                 return False
 

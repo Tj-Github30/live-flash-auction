@@ -12,7 +12,11 @@ const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000
 export function createSocketConnection(token: string): Socket {
   return io(API_BASE_URL, {
     path: '/socket.io',
-    transports: ['websocket', 'polling'],
+    // IMPORTANT (EKS + ALB + multiple websocket pods):
+    // Polling requires sticky sessions; without it you can get "Invalid session" (400) when
+    // GET/POST hit different pods. WebSocket-only avoids that entire class of issues.
+    transports: ['websocket'],
+    upgrade: false,
     autoConnect: false,
     query: {
       token: token
