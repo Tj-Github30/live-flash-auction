@@ -16,6 +16,7 @@ interface BiddingPanelProps {
   currentUserId?: string;
   highBidderId?: string;
   isHost?: boolean;
+  isClosed?: boolean;
 }
 
 interface Bid {
@@ -35,11 +36,18 @@ export function BiddingPanel({
   recentBids = [],
   currentUserId,
   highBidderId,
-  isHost = false
+  isHost = false,
+  isClosed = false
 }: BiddingPanelProps) {
   const [customBid, setCustomBid] = useState('');
   const [isPlacingBid, setIsPlacingBid] = useState(false);
   const nextMinBid = currentBid + bidIncrement;
+  const normalizeBidError = (msg?: string) => {
+    if (!msg) return 'Failed to place bid';
+    const lower = msg.toLowerCase();
+    if (lower.includes('auction is closed')) return 'Auction is closed.';
+    return msg;
+  };
   
   // Format recent bids
   const formattedBids: Bid[] = recentBids.map((bid, index) => ({
@@ -75,7 +83,7 @@ export function BiddingPanel({
       alert("Hosts cannot place bids on their own auctions.");
       return;
     }
-    if (isPlacingBid || amount < nextMinBid) return;
+    if (isClosed || isPlacingBid || amount < nextMinBid) return;
     
     setIsPlacingBid(true);
     try {
@@ -89,11 +97,11 @@ export function BiddingPanel({
         await response.json().catch(() => null);
       } else {
         const error = await response.json();
-        alert(error.error || 'Failed to place bid');
+        alert(normalizeBidError(error?.error));
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error placing bid:', error);
-      alert('Failed to place bid. Please try again.');
+      alert(normalizeBidError(error?.message || 'Failed to place bid. Please try again.'));
     } finally {
       setIsPlacingBid(false);
     }
@@ -106,7 +114,12 @@ export function BiddingPanel({
         <h4 className="mb-1 line-clamp-2">{title}</h4>
         
         {/* Status Badge */}
-        {showNeutral ? (
+        {isClosed ? (
+          <div className="inline-flex items-center gap-1.5 bg-red-50 text-red-700 px-2.5 py-1 rounded-full mt-2">
+            <TrendingUp className="w-3.5 h-3.5" />
+            <span className="text-sm font-bold text-red-700">Auction closed</span>
+          </div>
+        ) : showNeutral ? (
           <div className="inline-flex items-center gap-1.5 bg-slate-50 text-slate-700 px-2.5 py-1 rounded-full mt-2">
             <TrendingUp className="w-3.5 h-3.5" />
             <span className="text-xs">Ready to bid</span>
@@ -133,7 +146,7 @@ export function BiddingPanel({
         
         <div className="flex items-center gap-2 text-xs text-muted-foreground">
           <Clock className="w-3.5 h-3.5" />
-          <span>{formatTimeRemaining(timeRemaining)} remaining</span>
+          <span>{isClosed ? 'Ended' : `${formatTimeRemaining(timeRemaining)} remaining`}</span>
         </div>
       </div>
 
@@ -154,7 +167,7 @@ export function BiddingPanel({
           <Button
             variant="outline"
             onClick={() => handleQuickBid(currentBid + bidIncrement)}
-            disabled={isPlacingBid || isHost}
+            disabled={isClosed || isPlacingBid || isHost}
             className="h-10"
           >
             +${formatCurrency(bidIncrement)}
@@ -162,7 +175,7 @@ export function BiddingPanel({
           <Button
             variant="outline"
             onClick={() => handleQuickBid(currentBid + bidIncrement * 2)}
-            disabled={isPlacingBid || isHost}
+            disabled={isClosed || isPlacingBid || isHost}
             className="h-10"
           >
             +${formatCurrency(bidIncrement * 2)}
@@ -179,7 +192,7 @@ export function BiddingPanel({
               onChange={(e) => setCustomBid(e.target.value)}
               placeholder="Custom amount"
               className="pl-7"
-              disabled={isHost}
+              disabled={isHost || isClosed}
             />
           </div>
         </div>
@@ -187,10 +200,10 @@ export function BiddingPanel({
         {/* Place Bid Button */}
         <Button
           onClick={handleCustomBid}
-          disabled={isHost || isPlacingBid || !customBid || parseFloat(customBid) < nextMinBid}
+          disabled={isHost || isClosed || isPlacingBid || !customBid || parseFloat(customBid) < nextMinBid}
           className="w-full bg-accent hover:bg-accent/90 h-11"
         >
-          {isPlacingBid ? 'Placing Bid...' : 'Place Bid'}
+          {isClosed ? 'Auction closed' : isPlacingBid ? 'Placing Bid...' : 'Place Bid'}
         </Button>
       </div>
 

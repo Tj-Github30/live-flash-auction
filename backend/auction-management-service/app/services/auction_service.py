@@ -16,7 +16,7 @@ from shared.models.user import User
 from shared.redis.client import RedisHelper, RedisKeys
 from shared.schemas.auction_schemas import AuctionCreateRequest
 from shared.utils.errors import AuctionNotFoundError, ForbiddenError
-from shared.utils.helpers import get_current_timestamp_ms, calculate_time_remaining, parse_decimal, format_iso_datetime
+from shared.utils.helpers import get_current_timestamp_ms, calculate_time_remaining, parse_decimal
 from shared.config.settings import settings
 import logging
 

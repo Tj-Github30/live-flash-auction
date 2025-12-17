@@ -21,7 +21,6 @@ export interface AuctionData {
   title: string;
   currentBid: number;
   timeRemaining: string;
-  timeRemainingSeconds?: number | null;
   viewers: number;
   description: string;
   category: string;
@@ -36,6 +35,7 @@ export interface AuctionData {
   endTime: string;
   bidIncrement: number;
   status?: string; 
+  timeRemainingSeconds?: number;
 }
 
 interface LiveAuctionRoomProps {
@@ -98,6 +98,13 @@ export function LiveAuctionRoom({ auction, onBack }: LiveAuctionRoomProps) {
     const all = Array.from(new Set([auction.image, ...(auction.galleryImages || [])])).filter(Boolean);
     return all.map(img => ({ original: img, thumbnail: img }));
   }, [auction.image, auction.galleryImages]);
+
+  const isAuctionClosed = isEnded;
+
+  const displayTimeRemaining = useMemo(() => {
+    if (isEnded) return "Ended";
+    return formatTimeRemaining(timeRemainingSeconds ?? auction.timeRemaining);
+  }, [isEnded, timeRemainingSeconds, auction.timeRemaining]);
 
   const handleCloseAuction = async () => {
     if (!window.confirm("Are you sure you want to close this auction manually?")) return;
@@ -181,34 +188,26 @@ export function LiveAuctionRoom({ auction, onBack }: LiveAuctionRoomProps) {
             <ChatPanel messages={chatMessages} onSendMessage={handleSendChat} />
           </div>
 
-          <div className="col-span-6 bg-white p-4 rounded-xl shadow-sm border border-gray-100 h-[700px] flex flex-col relative overflow-hidden">
-            <div className="relative flex-grow h-full">
-              <ImageGallery items={galleryImages} showPlayButton={false} thumbnailPosition="left" showIndex={true} additionalClass="h-full" />
-               
-               {/* OVERLAY WHEN ENDED */}
-               {isEnded && (
-                 <div className="absolute inset-0 z-20 bg-black/60 flex flex-col items-center justify-center transition-opacity duration-500">
-                    <div className="bg-white/10 backdrop-blur-md border border-white/20 p-8 rounded-3xl flex flex-col items-center">
-                        <Lock className="w-12 h-12 text-white mb-4 opacity-90" />
-                        <h2 className="text-white text-6xl font-black tracking-tighter uppercase italic drop-shadow-2xl">
-                          Ended
-                        </h2>
-                        
-                    </div>
-                 </div>
-               )}
-
-               {/* STATUS BADGE */}
-               <div className={`absolute top-4 left-16 z-30 px-4 py-1.5 rounded-full text-white text-[13px] font-bold flex items-center gap-2 shadow-xl transition-all ${isEnded ? 'bg-zinc-900/90' : 'bg-black/60'}`}>
+          <div className="col-span-6 bg-white p-4 rounded-xl shadow-sm border border-gray-100 h-[700px] flex flex-col">
+            <div className="relative flex-grow overflow-hidden">
+              <ImageGallery
+                items={galleryImages}
+                showPlayButton={false}
+                thumbnailPosition="left"
+                showIndex={true}
+                showFullscreenButton={false}
+                additionalClass="live-auction-gallery h-full w-full"
+              />
+               <div className="absolute top-4 left-16 z-10 bg-black/60 px-3 py-1 rounded-full text-white text-sm flex items-center gap-2">
                  {isEnded ? (
                    <>
-                     <span className="w-2.5 h-2.5 bg-red-500 rounded-full" />
-                     <span className="tracking-tight">ENDED</span>
+                     <span className="w-2 h-2 bg-red-500 rounded-full" />
+                     ENDED
                    </>
                  ) : (
                    <>
-                     <span className="w-2.5 h-2.5 bg-green-500 rounded-full animate-pulse shadow-[0_0_8px_rgba(34,197,94,0.8)]" />
-                     <span className="tracking-tight">LIVE | {viewers} Viewers</span>
+                     <span className="w-2 h-2 bg-red-500 rounded-full animate-pulse" />
+                     LIVE | {viewers} Viewers
                    </>
                  )}
                </div>
@@ -240,13 +239,14 @@ export function LiveAuctionRoom({ auction, onBack }: LiveAuctionRoomProps) {
             <BiddingPanel
               title={auction.title}
               currentBid={currentBid}
-              timeRemaining={isEnded ? "Ended" : formatTimeRemaining(timeRemainingSeconds ?? auction.timeRemaining)}
+              timeRemaining={formatTimeRemaining(timeRemainingSeconds ?? auction.timeRemaining)}
               bidIncrement={auction.bidIncrement}
               auctionId={auction.auctionId}
               recentBids={recentBids}
               currentUserId={currentUserId || undefined}
               highBidderId={highBidderId || undefined}
               isHost={isHost}
+              isClosed={isAuctionClosed}
             />
           </div>
         </div>

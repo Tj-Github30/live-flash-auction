@@ -5,7 +5,6 @@ import { LiveAuctionRoom, AuctionData } from "../components/LiveAuctionRoom";
 import { useAuth } from "../auth/AuthProvider";
 import { api, apiJson } from "../utils/api";
 import { formatTimeRemaining } from "../utils/format";
-import { NO_IMAGE_DATA_URI } from "../utils/images";
 
 export const AuctionRoomPage: React.FC = () => {
   const { logout } = useAuth();

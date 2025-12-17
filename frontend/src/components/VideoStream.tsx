@@ -1,36 +1,31 @@
 import { Eye, Volume2, VolumeX, Maximize, Clock } from 'lucide-react';
 import { useState } from 'react';
-import { NO_IMAGE_DATA_URI } from '../utils/images';
 
 interface VideoStreamProps {
   viewers: number;
   timeRemaining: string;
-  imageUrl?: string;
 }
 
-export function VideoStream({ viewers, timeRemaining, imageUrl }: VideoStreamProps) {
+export function VideoStream({ viewers, timeRemaining }: VideoStreamProps) {
   const [isMuted, setIsMuted] = useState(false);
-  const isLive = timeRemaining !== "Ended";
 
   return (
     <div className="bg-black rounded-lg overflow-hidden shadow-lg relative aspect-video">
-      {/* Auction Image (replaces dummy livestream placeholder) */}
-      <img
-        src={imageUrl || NO_IMAGE_DATA_URI}
-        alt="Auction item"
-        className="w-full h-full object-cover"
-        onError={(e) => {
-          (e.currentTarget as HTMLImageElement).src = NO_IMAGE_DATA_URI;
-        }}
-      />
+      {/* Video Placeholder */}
+      <div className="w-full h-full bg-gradient-to-br from-gray-800 to-gray-900 flex items-center justify-center">
+        <div className="text-center text-white/60">
+          <div className="w-24 h-24 border-4 border-white/20 rounded-full flex items-center justify-center mx-auto mb-4">
+            <div className="w-16 h-16 bg-white/10 rounded-full"></div>
+          </div>
+          <p>Live Stream</p>
+        </div>
+      </div>
 
       {/* LIVE Badge */}
-      {isLive && (
-        <div className="absolute top-4 left-4 flex items-center gap-2 bg-white/95 backdrop-blur-sm px-3 py-1.5 rounded-full">
-          <span className="w-2.5 h-2.5 bg-red-500 rounded-full animate-pulse"></span>
-          <span className="text-sm tracking-wide">LIVE</span>
-        </div>
-      )}
+      <div className="absolute top-4 left-4 flex items-center gap-2 bg-white/95 backdrop-blur-sm px-3 py-1.5 rounded-full">
+        <span className="w-2.5 h-2.5 bg-red-500 rounded-full animate-pulse"></span>
+        <span className="text-sm tracking-wide">LIVE</span>
+      </div>
 
       {/* Viewer Count */}
       <div className="absolute top-4 right-4 flex items-center gap-2 bg-black/60 backdrop-blur-sm px-3 py-1.5 rounded-full text-white">

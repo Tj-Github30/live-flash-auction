@@ -336,7 +336,6 @@ export function NewListing() {
                 <SelectItem value="art">Art</SelectItem>
                 <SelectItem value="jewelry">Jewelry</SelectItem>
                 <SelectItem value="collectibles">Collectibles</SelectItem>
-                <SelectItem value="electronics">Electronics</SelectItem>
                 <SelectItem value="furniture">Furniture</SelectItem>
                 <SelectItem value="fashion">Fashion</SelectItem>
                 <SelectItem value="books">Books & Manuscripts</SelectItem>

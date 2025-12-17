@@ -2,7 +2,6 @@ import { useState, useEffect, useCallback } from 'react';
 import { FiltersBar } from './FiltersBar';
 import { AuctionCard } from './AuctionCard';
 import { api, apiJson } from '../utils/api';
-import { NO_IMAGE_DATA_URI } from '../utils/images';
 import { formatTimeRemaining } from '../utils/format';
 
 interface Auction {
@@ -16,11 +15,10 @@ interface Auction {
   category?: string;
   created_at: string;
   end_time?: string;
-  time_remaining_seconds?: number;
   participant_count?: number;
   bid_count?: number;
+  time_remaining_seconds?: number;
   winner_username?: string;
-  winning_bid?: number;
   high_bidder_username?: string;
 }
 
@@ -133,8 +131,7 @@ export function BuyPage({ onAuctionClick }: BuyPageProps) {
 
     return {
       id: auction.auction_id,
-      image: auction.image_url || NO_IMAGE_DATA_URI,
-      topLine: showWinnerLine ? `Winner: ${winnerName}` : undefined,
+      image: auction.image_url || 'https://via.placeholder.com/400x300?text=No+Image',
       title: auction.title,
       currentBid: auction.current_high_bid || auction.starting_bid,
       timeRemaining: timeRemaining,

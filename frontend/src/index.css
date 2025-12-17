@@ -2824,3 +2824,25 @@ html {
     opacity: 0;
   }
 }
+
+/* Live Auction gallery sizing to contain images inside the white box */
+.live-auction-gallery,
+.live-auction-gallery .image-gallery,
+.live-auction-gallery .image-gallery-content,
+.live-auction-gallery .image-gallery-slide-wrapper,
+.live-auction-gallery .image-gallery-slides,
+.live-auction-gallery .image-gallery-slide {
+  height: 100%;
+}
+
+.live-auction-gallery .image-gallery-slide img {
+  height: 100%;
+  width: 100%;
+  object-fit: contain;
+  background: #fff;
+}
+
+.live-auction-gallery .image-gallery-thumbnails-wrapper {
+  height: 100%;
+  overflow-y: auto;
+}

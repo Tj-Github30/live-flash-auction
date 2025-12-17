@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import { CheckCircle2, User } from 'lucide-react';
 import { api, apiJson } from '../utils/api';
-import { NO_IMAGE_DATA_URI } from '../utils/images';
 
 interface SoldItem {
   auction_id: string;
@@ -11,9 +10,7 @@ interface SoldItem {
   starting_bid: number;
   status: string;
   end_time?: string;
-  winner_username?: string;
   high_bidder_username?: string;
-  winning_bid?: number;
   bid_count?: number;
   closed_at?: string;
 }
@@ -107,7 +104,7 @@ export function SoldItems() {
               <div className="col-span-5 flex items-center gap-4">
                 <div className="w-20 h-20 rounded-lg overflow-hidden bg-secondary flex-shrink-0">
                   <img
-                    src={item.image_url || NO_IMAGE_DATA_URI}
+                    src={item.image_url || 'https://via.placeholder.com/80x80?text=No+Image'}
                     alt={item.title}
                     className="w-full h-full object-cover"
                   />
@@ -142,10 +139,10 @@ export function SoldItems() {
                   <User className="w-4 h-4 text-muted-foreground" />
                 </div>
                 <span className="text-foreground">
-                  {(item.winner_username || item.high_bidder_username)
-                    ? (item.winner_username || item.high_bidder_username)!.length > 18
-                      ? `${(item.winner_username || item.high_bidder_username)!.slice(0, 16)}…`
-                      : (item.winner_username || item.high_bidder_username)
+                  {item.high_bidder_username
+                    ? item.high_bidder_username.length > 18
+                      ? `${item.high_bidder_username.slice(0, 16)}…`
+                      : item.high_bidder_username
                     : 'N/A'}
                 </span>
               </div>

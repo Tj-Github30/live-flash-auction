@@ -1,12 +1,10 @@
 import { Clock, Eye, Heart } from 'lucide-react';
-import { useEffect, useState } from 'react';
-import { NO_IMAGE_DATA_URI } from '../utils/images';
+import { useState } from 'react';
 
 
 interface AuctionCardProps {
   id: string;
   image: string;
-  topLine?: string;
   title: string;
   currentBid: number;
   timeRemaining: string;
@@ -14,14 +12,9 @@ interface AuctionCardProps {
   onClick?: () => void;
 }
 
-export function AuctionCard({ image, topLine, title, currentBid, timeRemaining, viewers, onClick }: AuctionCardProps) {
+export function AuctionCard({ image, title, currentBid, timeRemaining, viewers, onClick }: AuctionCardProps) {
   const [isWatchlisted, setIsWatchlisted] = useState(false);
   const isLive = timeRemaining !== "Ended";
-  const [imgSrc, setImgSrc] = useState(image);
-
-  useEffect(() => {
-    setImgSrc(image);
-  }, [image]);
 
   return (
     <div 
@@ -31,10 +24,9 @@ export function AuctionCard({ image, topLine, title, currentBid, timeRemaining, 
       {/* Image Container */}
       <div className="relative aspect-[4/3] overflow-hidden bg-secondary">
         <img 
-          src={imgSrc}
+          src={image} 
           alt={title}
           className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
-          onError={() => setImgSrc(NO_IMAGE_DATA_URI)}
         />
         
         {/* LIVE Badge */}
@@ -63,11 +55,6 @@ export function AuctionCard({ image, topLine, title, currentBid, timeRemaining, 
 
       {/* Content */}
       <div className="p-4">
-        {topLine && (
-          <div className="text-xs text-muted-foreground mb-1">
-            {topLine}
-          </div>
-        )}
         <h3 className="mb-2 line-clamp-2">{title}</h3>
         
         <div className="flex items-center justify-between mb-3">
