@@ -9,7 +9,7 @@ import { BiddingPanel } from './BiddingPanel';
 import { ItemDetailsSection } from './ItemDetailsSection';
 import { Button } from './ui/button';
 import { useAuth } from '../auth/AuthProvider';
-import { api } from '../utils/api'; 
+import { api, apiJson } from '../utils/api'; 
 import { createSocketConnection } from '../utils/websocket';
 import { Socket } from 'socket.io-client';
 import { formatTimeRemaining, bidderAliasForAuction } from '../utils/format';
@@ -107,6 +107,14 @@ export function LiveAuctionRoom({ auction, onBack }: LiveAuctionRoomProps) {
     return formatTimeRemaining(timeRemainingSeconds ?? auction.timeRemaining);
   }, [isEnded, timeRemainingSeconds, auction.timeRemaining]);
 
+  // Notify outer pages to adjust viewer counts optimistically
+  useEffect(() => {
+    window.dispatchEvent(new CustomEvent("auction:viewed", { detail: { auctionId: auction.auctionId } }));
+    return () => {
+      window.dispatchEvent(new CustomEvent("auction:left", { detail: { auctionId: auction.auctionId } }));
+    };
+  }, [auction.auctionId]);
+
   const handleCloseAuction = async () => {
     if (!window.confirm("Are you sure you want to close this auction manually?")) return;
 
@@ -135,6 +143,8 @@ export function LiveAuctionRoom({ auction, onBack }: LiveAuctionRoomProps) {
 
     socket.on('connect', () => {
       socket.emit('join_auction', { auction_id: auction.auctionId, token: tokens.idToken });
+      // Optimistically include the current viewer
+      setViewers((prev) => (prev ?? 0) + 1);
     });
 
     socket.on('bid_update', (data: BidUpdate) => {
@@ -150,11 +160,58 @@ export function LiveAuctionRoom({ auction, onBack }: LiveAuctionRoomProps) {
             setTimeRemainingSeconds(seconds);
             if (seconds <= 0) setStatus('closed');
         }
+        if (typeof (data as any)?.participant_count === "number") {
+          setViewers((data as any).participant_count);
+        }
     });
 
+    const handleParticipant = (payload: any) => {
+      const count = payload?.participant_count ?? payload?.viewers;
+      if (typeof count === "number") setViewers(count);
+    };
+    socket.on('participant_update', handleParticipant);
+    socket.on('viewer_update', handleParticipant);
+    socket.on('viewers', handleParticipant);
+
     socket.connect();
-    return () => { if (socketRef.current) socketRef.current.disconnect(); };
+    return () => {
+      if (socketRef.current) {
+        socketRef.current.emit('leave_auction', { auction_id: auction.auctionId });
+        socketRef.current.disconnect();
+      }
+      // Optimistically remove the current viewer
+      setViewers((prev) => Math.max(0, (prev ?? 1) - 1));
+    };
   }, [tokens?.idToken, auction.auctionId]);
+
+  // Poll server state periodically to keep viewer count accurate across clients
+  useEffect(() => {
+    let active = true;
+
+    const fetchState = async () => {
+      try {
+        const resp = await api.get(`/api/auctions/${auction.auctionId}/state`);
+        if (!resp.ok) return;
+        const data = await apiJson<any>(resp);
+        if (!active) return;
+        if (typeof data?.participant_count === "number") {
+          setViewers(data.participant_count);
+        } else if (typeof data?.viewers === "number") {
+          setViewers(data.viewers);
+        }
+      } catch (err) {
+        // best-effort; ignore errors
+      }
+    };
+
+    // Initial fetch and interval
+    fetchState();
+    const id = window.setInterval(fetchState, 5000);
+    return () => {
+      active = false;
+      window.clearInterval(id);
+    };
+  }, [auction.auctionId]);
 
   useEffect(() => {
     if (isEnded) return;

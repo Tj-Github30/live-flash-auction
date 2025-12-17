@@ -6,6 +6,8 @@ import { useAuth } from "../auth/AuthProvider";
 import { api, apiJson } from "../utils/api";
 import { formatTimeRemaining } from "../utils/format";
 
+const NO_IMAGE_DATA_URI = 'https://via.placeholder.com/600x400?text=No+Image';
+
 export const AuctionRoomPage: React.FC = () => {
   const { logout } = useAuth();
   const navigate = useNavigate();
@@ -137,7 +139,7 @@ export const AuctionRoomPage: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-background">
-      <Header onLogout={logout} />
+      <Header onLogout={logout} onLogoClick={handleBackToAuctions} />
       <LiveAuctionRoom auction={auctionData} onBack={handleBackToAuctions} />
     </div>
   );

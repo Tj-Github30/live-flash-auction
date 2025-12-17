@@ -21,8 +21,8 @@ export function formatTimeRemaining(value: string | number | null | undefined): 
   const minutes = Math.floor((seconds % 3600) / 60);
   const secs = seconds % 60;
 
-  if (hours > 0) return `${hours}h ${minutes}m`;
-  return `${minutes}:${String(secs).padStart(2, "0")}`;
+  if (hours > 0) return `${hours}h ${minutes}m ${secs}s`;
+  return `${minutes}m ${String(secs).padStart(2, "0")}s`;
 }
 
 export function formatCurrency(amount: number, opts?: { decimals?: number }): string {

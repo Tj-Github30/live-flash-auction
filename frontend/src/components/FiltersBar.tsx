@@ -1,17 +1,29 @@
-import { ChevronDown, X, Search } from 'lucide-react';
+import { X } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 
-interface FiltersBarProps {
-  onFilterChange?: (filters: any) => void;
+interface Filters {
+  category: string;
+  priceRange: string;
+  timeRange: string;
 }
 
-export function FiltersBar({ onFilterChange }: FiltersBarProps) {
+interface FiltersBarProps {
+  filters: Filters;
+  onFilterChange?: (filters: Filters) => void;
+  onClear?: () => void;
+}
+
+export function FiltersBar({ filters, onFilterChange, onClear }: FiltersBarProps) {
+  const handleChange = (key: keyof Filters, value: string) => {
+    onFilterChange?.({ ...filters, [key]: value });
+  };
+
   return (
     <div className="bg-secondary/30 border-b border-border py-4">
       <div className="max-w-[1600px] mx-auto px-6">
         <div className="flex items-center gap-4 flex-wrap">
           {/* Category */}
-          <Select defaultValue="all">
+          <Select value={filters.category} onValueChange={(val) => handleChange("category", val)}>
             <SelectTrigger className="w-[160px] bg-white">
               <SelectValue placeholder="Category" />
             </SelectTrigger>
@@ -22,11 +34,12 @@ export function FiltersBar({ onFilterChange }: FiltersBarProps) {
               <SelectItem value="jewelry">Jewelry</SelectItem>
               <SelectItem value="collectibles">Collectibles</SelectItem>
               <SelectItem value="furniture">Furniture</SelectItem>
+              <SelectItem value="electronics">Electronics</SelectItem>
             </SelectContent>
           </Select>
 
           {/* Price Range */}
-          <Select defaultValue="all">
+          <Select value={filters.priceRange} onValueChange={(val) => handleChange("priceRange", val)}>
             <SelectTrigger className="w-[160px] bg-white">
               <SelectValue placeholder="Price Range" />
             </SelectTrigger>
@@ -40,7 +53,7 @@ export function FiltersBar({ onFilterChange }: FiltersBarProps) {
           </Select>
 
           {/* Time Remaining */}
-          <Select defaultValue="all">
+          <Select value={filters.timeRange} onValueChange={(val) => handleChange("timeRange", val)}>
             <SelectTrigger className="w-[180px] bg-white">
               <SelectValue placeholder="Time Remaining" />
             </SelectTrigger>
@@ -53,30 +66,13 @@ export function FiltersBar({ onFilterChange }: FiltersBarProps) {
             </SelectContent>
           </Select>
 
-          {/* Sort By */}
-          <Select defaultValue="ending-soon">
-            <SelectTrigger className="w-[160px] bg-white">
-              <SelectValue placeholder="Sort By" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="ending-soon">Ending Soon</SelectItem>
-              <SelectItem value="newest">Newest First</SelectItem>
-              <SelectItem value="price-low">Price: Low to High</SelectItem>
-              <SelectItem value="price-high">Price: High to Low</SelectItem>
-              <SelectItem value="popular">Most Popular</SelectItem>
-            </SelectContent>
-          </Select>
-
           <div className="flex-1"></div>
 
-          {/* Search */}
-          <button className="text-muted-foreground hover:text-foreground transition-colors flex items-center gap-2">
-            <Search className="w-4 h-4" />
-            <span>Search</span>
-          </button>
-
           {/* Clear All */}
-          <button className="text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1">
+          <button
+            onClick={onClear}
+            className="text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1"
+          >
             <X className="w-4 h-4" />
             Clear All
           </button>

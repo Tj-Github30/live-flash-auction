@@ -100,6 +100,7 @@ export function NewListing() {
                 <SelectItem value="furniture">Furniture</SelectItem>
                 <SelectItem value="fashion">Fashion</SelectItem>
                 <SelectItem value="books">Books & Manuscripts</SelectItem>
+                <SelectItem value="electronics">Electronics</SelectItem>
               </SelectContent>
             </Select>
           </div>

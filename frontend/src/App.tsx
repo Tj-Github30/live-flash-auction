@@ -15,9 +15,13 @@ const ProtectedAppShell: React.FC = () => {
 
   const [activeTab, setActiveTab] = useState<"buy" | "sell" | "my-bids">("buy");
 
+  const handleLogoClick = () => {
+    setActiveTab("buy");
+  };
+
   return (
     <div className="min-h-screen bg-background">
-      <Header onLogout={logout} />
+      <Header onLogout={logout} onLogoClick={handleLogoClick} />
       <SecondaryNav activeTab={activeTab} onTabChange={setActiveTab} />
 
       {activeTab === "buy" && (
@@ -42,30 +46,10 @@ const ProtectedAppShell: React.FC = () => {
 
       <footer className="border-t border-border mt-16">
         <div className="max-w-[1600px] mx-auto px-6 py-8">
-          <div className="flex items-center justify-between">
-            <p className="text-xs text-muted-foreground">
+          <div className="flex items-center justify-center">
+            <p className="text-xs text-muted-foreground text-center">
               © 2025 Luxe Auction. All rights reserved.
             </p>
-            <div className="flex gap-6">
-              <a
-                href="#"
-                className="text-xs text-muted-foreground hover:text-foreground transition-colors"
-              >
-                Terms of Service
-              </a>
-              <a
-                href="#"
-                className="text-xs text-muted-foreground hover:text-foreground transition-colors"
-              >
-                Privacy Policy
-              </a>
-              <a
-                href="#"
-                className="text-xs text-muted-foreground hover:text-foreground transition-colors"
-              >
-                Contact
-              </a>
-            </div>
           </div>
         </div>
       </footer>
