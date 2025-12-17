@@ -23,6 +23,7 @@ export interface AuctionData {
   viewers: number;
   status?: string;
   hostUserId?: string;
+  highBidderId?: string | null;
   seller: string;
   bidIncrement: number;
   description: string;
@@ -32,7 +33,7 @@ export interface AuctionData {
   totalBids: number;
   startTime: string;
   endTime: string;
-  timeRemaining: number;
+  timeRemaining: string;
 }
 
 interface LiveAuctionRoomProps {
@@ -49,7 +50,7 @@ export function LiveAuctionRoom({ auction, onBack }: LiveAuctionRoomProps) {
   const [viewers, setViewers] = useState(auction.viewers);
   const [chatMessages, setChatMessages] = useState<any[]>([]);
   const [recentBids, setRecentBids] = useState<any[]>([]); 
-  const [highBidderId, setHighBidderId] = useState<string | null>(null);
+  const [highBidderId, setHighBidderId] = useState<string | null>(auction.highBidderId || null);
   const [isClosing, setIsClosing] = useState(false);
   const [status, setStatus] = useState(auction.status || 'live');
 
@@ -148,6 +149,31 @@ export function LiveAuctionRoom({ auction, onBack }: LiveAuctionRoomProps) {
           const mapped = mapRecentBids(data.recent_bids);
           setRecentBids(mapped);
           persistRecentBids(mapped);
+          
+          // Fallback: If high_bidder_id is not provided but we have recent bids, derive it from the highest bid
+          if (!data?.high_bidder_id && data.recent_bids.length > 0) {
+            // Find the bid with the highest amount (top_bids are sorted descending)
+            const topBid = data.recent_bids[0];
+            if (topBid?.user_id) {
+              setHighBidderId(String(topBid.user_id));
+            }
+          }
+        }
+
+        if (typeof data?.current_high_bid === "number") {
+          setCurrentBid(data.current_high_bid);
+        }
+
+        // Always set high_bidder_id if provided (even if null/empty string to clear previous state)
+        if (data?.high_bidder_id !== undefined && data?.high_bidder_id !== null && data?.high_bidder_id !== "") {
+          setHighBidderId(String(data.high_bidder_id));
+        } else if (data?.high_bidder_id === null || data?.high_bidder_id === "") {
+          // Explicitly clear if null or empty string
+          setHighBidderId(null);
+        }
+
+        if (data?.status) {
+          setStatus(data.status);
         }
 
         if (Array.isArray(data?.chat_messages)) {
@@ -243,6 +269,19 @@ export function LiveAuctionRoom({ auction, onBack }: LiveAuctionRoomProps) {
           const mapped = mapBids(data.recent_bids);
           setRecentBids(mapped);
           persistRecentBids(mapped);
+        }
+
+        if (typeof data?.current_high_bid === "number") {
+          setCurrentBid(data.current_high_bid);
+        }
+
+        // Always set high_bidder_id, even if null (to clear previous state)
+        if (data?.high_bidder_id !== undefined) {
+          setHighBidderId(data.high_bidder_id ? String(data.high_bidder_id) : null);
+        }
+
+        if (data?.status) {
+          setStatus(data.status);
         }
       } catch {
         // best-effort; ignore errors

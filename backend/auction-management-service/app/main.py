@@ -24,7 +24,7 @@ from flask_cors import CORS
 from shared.config.settings import settings
 from shared.utils.errors import register_error_handlers
 from shared.utils.logger import setup_logger
-from app.api import auction_routes, auth_routes
+from app.api import auction_routes, auth_routes, bid_routes
 
 
 def create_app() -> Flask:
@@ -50,6 +50,7 @@ def create_app() -> Flask:
     # Register blueprints
     app.register_blueprint(auction_routes.bp)
     app.register_blueprint(auth_routes.bp)
+    app.register_blueprint(bid_routes.bp)
 
     # Health check endpoint
     @app.route("/health", methods=["GET"])

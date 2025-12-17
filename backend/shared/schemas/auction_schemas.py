@@ -14,19 +14,12 @@ class AuctionCreateRequest(BaseModel):
     duration: int = Field(..., gt=0, description="Duration in seconds")
     category: Optional[str] = Field(None, max_length=100)
     starting_bid: Decimal = Field(..., gt=0, description="Starting bid amount")
-<<<<<<< Updated upstream
     seller_name: str = Field(..., min_length=1, max_length=100)
     condition: str = Field(..., min_length=1, max_length=100) 
-=======
->>>>>>> Stashed changes
     
     # --- ADDED: Support for images ---
     image_url: Optional[str] = Field(None, description="Main image URL or Base64 string")
     images: Optional[List[str]] = Field(default=[], description="List of all auction images")
-<<<<<<< Updated upstream
-
-=======
->>>>>>> Stashed changes
 
     @validator("starting_bid")
     def validate_starting_bid(cls, v):
@@ -62,20 +55,13 @@ class AuctionResponse(BaseModel):
     winner_id: Optional[str] = None
     winning_bid: Optional[Decimal] = None
     ended_at: Optional[str] = None
-<<<<<<< Updated upstream
-    condition:Optional[str] = None
-    
-    # --- ADDED: Return images to frontend ---
+    condition: Optional[str] = None
     seller_name: str
-    images: Optional[List[str]] = None
-    image_url: Optional[str] = None
-=======
     ivs_playback_url: Optional[str] = None
     
     # --- ADDED: Return images to frontend ---
     image_url: Optional[str] = None
     images: Optional[List[str]] = []
->>>>>>> Stashed changes
 
     class Config:
         from_attributes = True

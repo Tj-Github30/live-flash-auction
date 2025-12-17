@@ -16,7 +16,7 @@ from shared.models.bid import Bid
 from shared.models.user import User
 from shared.redis.client import RedisHelper, RedisKeys
 from shared.schemas.auction_schemas import AuctionCreateRequest
-from shared.utils.errors import AuctionNotFoundError, ForbiddenError
+from shared.utils.errors import AuctionNotFoundError, ForbiddenError, AuctionClosedError, InvalidBidError
 from shared.utils.helpers import get_current_timestamp_ms, calculate_time_remaining, parse_decimal
 from shared.config.settings import settings
 import logging
@@ -394,7 +394,7 @@ class AuctionService:
             # Use Redis for real-time bid info if available, fallback to DB
             state = self.redis_helper.get_auction_state(str(auction_id)) or {}
             
-            return {
+            result = {
                 "auction_id": str(auction.auction_id),
                 "status": auction.status,
                 "current_high_bid": float(state.get("current_high_bid") or auction.starting_bid),
@@ -402,6 +402,41 @@ class AuctionService:
                 "bid_count": int(state.get("bid_count") or 0),
                 "ended_at": auction.ended_at.isoformat() if auction.ended_at else None
             }
+            
+            # Add recent bids from Redis first (needed to derive high_bidder_id if missing)
+            try:
+                top_bids = self.redis_helper.get_top_bids(str(auction_id))
+                if top_bids:
+                    result["recent_bids"] = top_bids
+            except Exception:
+                pass
+            
+            # Add high bidder info if available in Redis state
+            high_bidder_id_from_state = state.get("high_bidder_id")
+            if high_bidder_id_from_state and str(high_bidder_id_from_state).strip():
+                result["high_bidder_id"] = str(high_bidder_id_from_state).strip()
+            elif top_bids and len(top_bids) > 0:
+                # Derive high_bidder_id from top bid if not in Redis state
+                # top_bids is sorted by amount descending, so first bid is highest
+                top_bid = top_bids[0]
+                if isinstance(top_bid, dict) and top_bid.get("user_id"):
+                    result["high_bidder_id"] = str(top_bid["user_id"])
+                elif isinstance(top_bid, list) and len(top_bid) > 1:
+                    # Handle tuple format: (user_id, username, amount)
+                    result["high_bidder_id"] = str(top_bid[0])
+            
+            high_bidder_username_from_state = state.get("high_bidder_username")
+            if high_bidder_username_from_state and str(high_bidder_username_from_state).strip():
+                result["high_bidder_username"] = str(high_bidder_username_from_state).strip()
+            elif top_bids and len(top_bids) > 0:
+                # Derive username from top bid if not in Redis state
+                top_bid = top_bids[0]
+                if isinstance(top_bid, dict) and top_bid.get("username"):
+                    result["high_bidder_username"] = top_bid["username"]
+                elif isinstance(top_bid, list) and len(top_bid) > 1:
+                    result["high_bidder_username"] = str(top_bid[1])
+            
+            return result
         finally:
             db.close()
 
@@ -419,15 +454,130 @@ class AuctionService:
             )
             results = []
             for bid, auction in query.all():
+                auction_id = str(bid.auction_id)
+                
+                # Get real-time state from Redis
+                state = self.redis_helper.get_auction_state(auction_id) or {}
+                
+                # Calculate time remaining
+                time_remaining_seconds = None
+                end_time_key = RedisKeys.auction_end_time(auction_id)
+                end_time_ms = int(self.redis_helper.client.get(end_time_key) or 0)
+                if end_time_ms > 0:
+                    time_remaining_ms = end_time_ms - get_current_timestamp_ms()
+                    if time_remaining_ms > 0:
+                        time_remaining_seconds = int(time_remaining_ms / 1000)
+                
+                # Determine if auction is closed
+                is_closed = auction.status == 'closed' or (time_remaining_seconds is not None and time_remaining_seconds <= 0)
+                
                 results.append({
                     "bid_id": str(bid.bid_id),
-                    "auction_id": str(bid.auction_id),
+                    "auction_id": auction_id,
                     "title": auction.title if auction else None,
                     "image_url": auction.image_url if auction else None,
                     "amount": float(bid.amount),
                     "created_at": bid.created_at.isoformat() if bid.created_at else "",
-                    "status": auction.status if auction else None,
+                    "status": "closed" if is_closed else (auction.status or "live"),
+                    "current_high_bid": float(state.get("current_high_bid") or auction.starting_bid),
+                    "starting_bid": float(auction.starting_bid),
+                    "time_remaining_seconds": time_remaining_seconds,
+                    "participant_count": int(state.get("participant_count") or 0),
                 })
             return results
+        finally:
+            db.close()
+
+    def place_bid(self, auction_id: str, user_id: str, username: str, amount: float) -> Dict:
+        """
+        Place a bid on an auction.
+        Stores bid in PostgreSQL and updates Redis state.
+        """
+        db = SessionLocal()
+        try:
+            # 1. Validate auction exists and is live
+            auction = db.query(Auction).filter(Auction.auction_id == auction_id).first()
+            if not auction:
+                raise AuctionNotFoundError(auction_id)
+            
+            if auction.status != 'live':
+                raise AuctionClosedError(auction_id)
+            
+            # 2. Host cannot bid on their own auction
+            if str(auction.host_user_id) == str(user_id):
+                raise ForbiddenError("Host cannot place bids on their own auction")
+            
+            # 3. Get current high bid from Redis or use starting bid
+            state = self.redis_helper.get_auction_state(auction_id) or {}
+            current_high_bid = float(state.get("current_high_bid") or auction.starting_bid)
+            
+            # 4. Validate bid amount (use minimum increment from settings, default to 1)
+            min_increment = float(os.getenv("MINIMUM_BID_INCREMENT", "1"))
+            min_bid = current_high_bid + min_increment
+            
+            if amount < min_bid:
+                raise InvalidBidError(f"Bid must be at least ${min_bid:.2f}")
+            
+            # 5. Check if auction has ended (time-based)
+            end_time_key = RedisKeys.auction_end_time(auction_id)
+            end_time_ms = int(self.redis_helper.client.get(end_time_key) or 0)
+            if end_time_ms > 0:
+                time_remaining_ms = end_time_ms - get_current_timestamp_ms()
+                if time_remaining_ms <= 0:
+                    raise AuctionClosedError(auction_id)
+            
+            # 6. Store bid in PostgreSQL
+            bid = Bid(
+                auction_id=auction_id,
+                user_id=user_id,
+                username=username,
+                amount=Decimal(str(amount))
+            )
+            db.add(bid)
+            db.commit()
+            
+            # 7. Update Redis state atomically
+            is_new_high = amount > current_high_bid
+            if is_new_high:
+                self.redis_helper.update_auction_field(auction_id, "current_high_bid", str(amount))
+                self.redis_helper.update_auction_field(auction_id, "high_bidder_id", str(user_id))
+                self.redis_helper.update_auction_field(auction_id, "high_bidder_username", username)
+            
+            # Update bid count
+            bid_count = int(state.get("bid_count", 0)) + 1
+            self.redis_helper.update_auction_field(auction_id, "bid_count", str(bid_count))
+            
+            # 8. Add to top bids list
+            if is_new_high:
+                self.redis_helper.add_top_bid(auction_id, user_id, username, amount)
+            
+            # 9. Publish bid event to Redis pub/sub
+            bid_event = {
+                "type": "bid",
+                "auction_id": auction_id,
+                "user_id": user_id,
+                "username": username,
+                "amount": amount,
+                "timestamp": get_current_timestamp_ms(),
+                "is_new_high": is_new_high
+            }
+            channel = RedisKeys.channel_events(auction_id)
+            self.redis_helper.publish_event(channel, bid_event)
+            
+            return {
+                "status": "success" if is_new_high else "outbid",
+                "is_highest": is_new_high,
+                "current_high_bid": amount if is_new_high else current_high_bid,
+                "your_bid": amount,
+                "message": "Bid placed successfully" if is_new_high else "Your bid was outbid"
+            }
+            
+        except (AuctionNotFoundError, AuctionClosedError, InvalidBidError, ForbiddenError) as e:
+            db.rollback()
+            raise
+        except Exception as e:
+            db.rollback()
+            logger.error(f"Error placing bid: {e}", exc_info=True)
+            raise
         finally:
             db.close()

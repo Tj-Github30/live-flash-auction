@@ -2,12 +2,28 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthProvider';
 import { api, apiJson } from '../utils/api';
+import { AuctionCard } from './AuctionCard';
+import { formatTimeRemaining } from '../utils/format';
+
+interface Bid {
+  bid_id: string;
+  auction_id: string;
+  title?: string;
+  image_url?: string;
+  amount: number;
+  created_at: string;
+  status?: string;
+  current_high_bid?: number;
+  starting_bid?: number;
+  time_remaining_seconds?: number | null;
+  participant_count?: number;
+}
 
 export function MyBids() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const userId = user?.sub ? String(user.sub) : undefined;
-  const [bids, setBids] = useState<Array<{ bid_id: string; auction_id: string; title?: string; image_url?: string; amount: number; created_at: string; status?: string }>>([]);
+  const [bids, setBids] = useState<Bid[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -21,9 +37,13 @@ export function MyBids() {
       setLoading(true);
       setError(null);
       const resp = await api.get('/api/bids');
-      const data = await apiJson<{ bids: any[] }>(resp);
+      if (!resp.ok) {
+        throw new Error(`Failed to load bids: ${resp.status}`);
+      }
+      const data = await apiJson<{ bids: Bid[] }>(resp);
       setBids(data.bids || []);
     } catch (err: any) {
+      console.error('Error loading bids:', err);
       setError(err?.message || 'Failed to load your bids');
       setBids([]);
     } finally {
@@ -35,6 +55,22 @@ export function MyBids() {
     loadBids();
   }, [userId]);
 
+  const formatBidForCard = (bid: Bid) => {
+    const isClosed = bid.status === "closed" || (bid.time_remaining_seconds !== null && bid.time_remaining_seconds !== undefined && bid.time_remaining_seconds <= 0);
+    const timeRemaining = isClosed
+      ? "Ended"
+      : formatTimeRemaining(bid.time_remaining_seconds ?? null);
+
+    return {
+      id: bid.auction_id,
+      image: bid.image_url || 'https://via.placeholder.com/400x300?text=No+Image',
+      title: bid.title || 'Auction',
+      currentBid: bid.current_high_bid || bid.starting_bid || bid.amount,
+      timeRemaining: timeRemaining,
+      viewers: bid.participant_count || 0,
+    };
+  };
+
   return (
     <div className="pt-[137px] max-w-[1600px] mx-auto px-6 py-16">
       <div className="mb-8">
@@ -42,47 +78,33 @@ export function MyBids() {
         <p className="text-muted-foreground">Track all your active and past bids</p>
       </div>
 
-      <div className="bg-white rounded-lg border border-border overflow-hidden">
-        <div className="grid grid-cols-12 gap-4 px-6 py-4 bg-secondary/30 border-b border-border">
-          <div className="col-span-6">Item</div>
-          <div className="col-span-3 text-right">Your Bid</div>
-          <div className="col-span-3 text-center">Placed</div>
+      {loading ? (
+        <div className="text-center py-16">
+          <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+          <p className="text-muted-foreground">Loading your bids...</p>
         </div>
-
-        {loading ? (
-          <div className="text-center py-16 text-muted-foreground">Loading your bids...</div>
-        ) : error ? (
-          <div className="text-center py-16 text-red-600">{error}</div>
-        ) : bids.length === 0 ? (
-          <div className="text-center py-16 text-muted-foreground">You haven&apos;t placed any bids yet</div>
-        ) : (
-          bids.map((bid) => (
-            <div
-              key={`${bid.bid_id}-${bid.created_at}`}
+      ) : error ? (
+        <div className="text-center py-16">
+          <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg text-red-800 text-sm max-w-md mx-auto">
+            {error}
+          </div>
+        </div>
+      ) : bids.length === 0 ? (
+        <div className="text-center py-16 border-2 border-dashed border-gray-100 rounded-2xl">
+          <p className="text-muted-foreground font-medium">You haven&apos;t placed any bids yet</p>
+          <p className="text-sm text-muted-foreground mt-2">Start bidding on auctions to see them here</p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+          {bids.map((bid) => (
+            <AuctionCard
+              key={bid.bid_id}
+              {...formatBidForCard(bid)}
               onClick={() => navigate(`/auction/${bid.auction_id}`)}
-              className="grid grid-cols-12 gap-4 px-6 py-4 border-b border-border last:border-b-0 hover:bg-secondary/20 transition-colors cursor-pointer"
-            >
-              <div className="col-span-6 flex items-center gap-3">
-                {bid.image_url ? (
-                  <img src={bid.image_url} alt={bid.title} className="w-14 h-14 rounded-lg object-cover bg-secondary" />
-                ) : (
-                  <div className="w-14 h-14 rounded-lg bg-secondary" />
-                )}
-                <div>
-                  <p className="font-medium">{bid.title || 'Auction'}</p>
-                  <p className="text-xs text-muted-foreground">{bid.status || 'Active'}</p>
-                </div>
-              </div>
-
-              <div className="col-span-3 text-right text-accent">${Number(bid.amount).toLocaleString()}</div>
-
-              <div className="col-span-3 text-center text-sm text-muted-foreground">
-                {new Date(bid.created_at).toLocaleString()}
-              </div>
-            </div>
-          ))
-        )}
-      </div>
+            />
+          ))}
+        </div>
+      )}
     </div>
   );
 }
