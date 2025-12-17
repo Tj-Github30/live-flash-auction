@@ -47,6 +47,9 @@ spec:
           value: "us-east-1"
         - name: CORS_ORIGINS
           value: "*"
+        # Keep config consistent across services (also used by bid-processing)
+        - name: MINIMUM_BID_INCREMENT
+          value: "1"
         resources:
           requests:
             memory: "256Mi"

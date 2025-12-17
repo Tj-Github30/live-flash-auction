@@ -14,6 +14,9 @@ type Tokens = {
 
 type UserInfo = {
   sub: string;
+  // Cognito ID token commonly includes this key; keep it optional for safety.
+  "cognito:username"?: string;
+  username?: string;
   email?: string;
   phone_number?: string;
   name?: string;

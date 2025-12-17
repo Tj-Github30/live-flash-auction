@@ -13,6 +13,8 @@ interface BiddingPanelProps {
   bidIncrement: number;
   auctionId: string;
   recentBids?: Array<{ username: string; amount: number; timestamp: string }>;
+  currentUsername?: string;
+  highBidderUsername?: string;
 }
 
 interface Bid {
@@ -29,11 +31,12 @@ export function BiddingPanel({
   timeRemaining, 
   bidIncrement,
   auctionId,
-  recentBids = []
+  recentBids = [],
+  currentUsername,
+  highBidderUsername
 }: BiddingPanelProps) {
   const [customBid, setCustomBid] = useState('');
   const [isPlacingBid, setIsPlacingBid] = useState(false);
-  const [bidStatus, setBidStatus] = useState<'idle' | 'winning' | 'outbid'>('idle');
   const nextMinBid = currentBid + bidIncrement;
   
   // Format recent bids
@@ -42,12 +45,20 @@ export function BiddingPanel({
     username: bid.username,
     amount: bid.amount,
     timestamp: bid.timestamp || 'now',
-    isYou: false // TODO: Check if bid is from current user
+    isYou: !!currentUsername && bid.username === currentUsername
   }));
   
-  const isWinning = bidStatus === 'winning';
-  const isOutbid = bidStatus === 'outbid';
-  const showNeutral = bidStatus === 'idle' && formattedBids.length === 0;
+  const isWinning =
+    !!currentUsername &&
+    !!highBidderUsername &&
+    highBidderUsername === currentUsername;
+
+  const isOutbid =
+    !!currentUsername &&
+    !!highBidderUsername &&
+    highBidderUsername !== currentUsername;
+
+  const showNeutral = !highBidderUsername && formattedBids.length === 0;
 
   const handleQuickBid = async (amount: number) => {
     await placeBid(amount);
@@ -72,13 +83,10 @@ export function BiddingPanel({
       });
       
       if (response.ok) {
-        const data = await response.json().catch(() => null);
-        if (data?.status === 'success') setBidStatus('winning');
-        else if (data?.status === 'outbid') setBidStatus('outbid');
-        else setBidStatus('winning');
+        // Real-time winner/outbid status is driven by websocket updates (highBidderUsername).
+        await response.json().catch(() => null);
       } else {
         const error = await response.json();
-        if (error?.error?.toLowerCase?.().includes('outbid')) setBidStatus('outbid');
         alert(error.error || 'Failed to place bid');
       }
     } catch (error) {

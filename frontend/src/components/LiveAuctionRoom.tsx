@@ -55,7 +55,7 @@ interface ChatMessage {
 }
 
 export function LiveAuctionRoom({ auction, onBack }: LiveAuctionRoomProps) {
-  const { tokens } = useAuth();
+  const { tokens, user } = useAuth();
   const socketRef = useRef<Socket | null>(null);
   const [currentBid, setCurrentBid] = useState(auction.currentBid);
   const [timeRemaining, setTimeRemaining] = useState(auction.timeRemaining);
@@ -64,6 +64,10 @@ export function LiveAuctionRoom({ auction, onBack }: LiveAuctionRoomProps) {
   const [recentBids, setRecentBids] = useState<Array<{ username: string; amount: number; timestamp: string }>>([]);
   const [isConnected, setIsConnected] = useState(false);
   const [connectionError, setConnectionError] = useState<string | null>(null);
+  const [highBidderUsername, setHighBidderUsername] = useState<string | null>(null);
+
+  const currentUsername =
+    user?.["cognito:username"] || user?.username || user?.sub || null;
 
   useEffect(() => {
     if (!tokens?.idToken) {
@@ -106,6 +110,9 @@ export function LiveAuctionRoom({ auction, onBack }: LiveAuctionRoomProps) {
       if (data.time_remaining) {
         setTimeRemaining(data.time_remaining);
       }
+      if (typeof data.high_bidder_username === 'string') {
+        setHighBidderUsername(data.high_bidder_username || null);
+      }
       if (data.participant_count) {
         setViewers(data.participant_count);
       }
@@ -123,6 +130,9 @@ export function LiveAuctionRoom({ auction, onBack }: LiveAuctionRoomProps) {
       console.log('Bid update:', data);
       setCurrentBid(data.high_bid);
       setViewers(data.participant_count);
+      if (typeof data.high_bidder_username === 'string') {
+        setHighBidderUsername(data.high_bidder_username || null);
+      }
       if (data.top_bids) {
         setRecentBids(data.top_bids.map(bid => ({
           username: bid.username,
@@ -243,6 +253,8 @@ export function LiveAuctionRoom({ auction, onBack }: LiveAuctionRoomProps) {
               bidIncrement={auction.bidIncrement}
               auctionId={auction.auctionId}
               recentBids={recentBids}
+              currentUsername={currentUsername || undefined}
+              highBidderUsername={highBidderUsername || undefined}
             />
           </div>
         </div>

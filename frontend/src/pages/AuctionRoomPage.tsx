@@ -55,7 +55,7 @@ export const AuctionRoomPage: React.FC = () => {
           watchCount: state?.participant_count || 0,
           startTime: formatDate(auction.created_at),
           endTime: formatDate(auction.end_time),
-          bidIncrement: auction.bid_increment || 100,
+          bidIncrement: auction.bid_increment || 1,
         };
 
         setAuctionData(formattedAuction);
