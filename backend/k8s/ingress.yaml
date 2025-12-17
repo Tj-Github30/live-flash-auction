@@ -15,6 +15,8 @@ metadata:
     alb.ingress.kubernetes.io/unhealthy-threshold-count: "3"
     # WebSocket support
     alb.ingress.kubernetes.io/backend-protocol: HTTP
+    # Ensure HTTP/1.1 to targets for WebSocket/Socket.IO
+    alb.ingress.kubernetes.io/backend-protocol-version: HTTP1
     alb.ingress.kubernetes.io/target-group-attributes: stickiness.enabled=true,stickiness.lb_cookie.duration_seconds=86400
     # Specify subnets explicitly to avoid auto-discovery issues
     alb.ingress.kubernetes.io/subnets: subnet-0b60d1b6e1b6c917c,subnet-08ed4fee5a600ebf1
@@ -54,6 +56,14 @@ spec:
             port:
               number: 8002
       # WebSocket Service (Flask-SocketIO uses /socket.io by default)
+      # Some clients/request paths include a trailing slash (/socket.io/...), so add an explicit rule.
+      - path: /socket.io/
+        pathType: Prefix
+        backend:
+          service:
+            name: websocket-service
+            port:
+              number: 8001
       - path: /socket.io
         pathType: Prefix
         backend:
