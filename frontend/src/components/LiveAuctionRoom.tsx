@@ -1,19 +1,23 @@
-import React, { useEffect, useState, useRef } from 'react';
-import { ArrowLeft } from 'lucide-react';
+import React, { useEffect, useState, useRef, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { ArrowLeft, AlertTriangle } from 'lucide-react';
+import ImageGallery from 'react-image-gallery';
+import 'react-image-gallery/styles/css/image-gallery.css';
+
 import { ChatPanel } from './ChatPanel';
-import { VideoStream } from './VideoStream';
 import { BiddingPanel } from './BiddingPanel';
 import { ItemDetailsSection } from './ItemDetailsSection';
 import { Button } from './ui/button';
 import { useAuth } from '../auth/AuthProvider';
+import { api } from '../utils/api'; 
 import { createSocketConnection } from '../utils/websocket';
 import { Socket } from 'socket.io-client';
-import { formatTimeRemaining } from '../utils/format';
-import { bidderAliasForAuction } from '../utils/format';
+import { formatTimeRemaining, bidderAliasForAuction } from '../utils/format';
 
 export interface AuctionData {
   id: string;
   image: string;
+  galleryImages: string[];
   title: string;
   currentBid: number;
   timeRemaining: string;
@@ -59,9 +63,7 @@ interface ChatMessage {
 }
 
 type TimerUpdatePayload = {
-  // legacy/expected
   time_remaining?: string | number;
-  // timer-service publishes these
   time_remaining_seconds?: number;
   time_remaining_ms?: number;
   auction_ended?: boolean;
@@ -70,195 +72,123 @@ type TimerUpdatePayload = {
 export function LiveAuctionRoom({ auction, onBack }: LiveAuctionRoomProps) {
   const { tokens, user } = useAuth();
   const socketRef = useRef<Socket | null>(null);
+  
   const [currentBid, setCurrentBid] = useState(auction.currentBid);
   const [timeRemaining, setTimeRemaining] = useState(auction.timeRemaining);
-  const [timeRemainingSeconds, setTimeRemainingSeconds] = useState<number | null | undefined>(
-    auction.timeRemainingSeconds
-  );
+  const [timeRemainingSeconds, setTimeRemainingSeconds] = useState<number | null | undefined>(auction.timeRemainingSeconds);
   const [viewers, setViewers] = useState(auction.viewers);
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [recentBids, setRecentBids] = useState<Array<{ username: string; amount: number; timestamp: string }>>([]);
   const [isConnected, setIsConnected] = useState(false);
   const [connectionError, setConnectionError] = useState<string | null>(null);
   const [highBidderId, setHighBidderId] = useState<string | null>(null);
+  const [isClosing, setIsClosing] = useState(false);
 
+  // LOGIC: Determine if the current user is the host
   const currentUserId = user?.sub || null;
-  const isHost = !!currentUserId && !!auction.hostUserId && currentUserId === auction.hostUserId;
+  const isHost = useMemo(() => {
+    if (!currentUserId || !auction.hostUserId) return false;
+    return String(currentUserId) === String(auction.hostUserId);
+  }, [currentUserId, auction.hostUserId]);
+
+  // DEBUG: Check this in your browser console if the button is missing
+  useEffect(() => {
+    console.log("Room Auth Check:", { 
+      currentUserId, 
+      hostUserId: auction.hostUserId, 
+      isHost 
+    });
+  }, [currentUserId, auction.hostUserId, isHost]);
+
+  const galleryImages = useMemo(() => {
+    const all = Array.from(new Set([auction.image, ...(auction.galleryImages || [])])).filter(Boolean);
+    return all.map(img => ({
+      original: img,
+      thumbnail: img,
+    }));
+  }, [auction.image, auction.galleryImages]);
+
+  const handleCloseAuction = async () => {
+    if (!window.confirm("Are you sure you want to close this auction manually?")) return;
+
+    setIsClosing(true);
+    try {
+      const response = await api.post(`/api/auctions/${auction.auctionId}/close`);
+      if (!response.ok) throw new Error("Failed to close auction");
+      
+      window.dispatchEvent(new CustomEvent("auction:ended"));
+      alert("Auction closed successfully.");
+      onBack();
+    } catch (err) {
+      console.error(err);
+      alert("Error closing auction. Check console for details.");
+    } finally {
+      setIsClosing(false);
+    }
+  };
 
   useEffect(() => {
-    if (!tokens?.idToken) {
-      console.error('No authentication token available');
-      return;
-    }
+    if (!tokens?.idToken) return;
 
-    // Create and connect socket
     const socket = createSocketConnection(tokens.idToken);
     socketRef.current = socket;
 
-    // Connection events
     socket.on('connect', () => {
-      console.log('WebSocket connected');
       setIsConnected(true);
       setConnectionError(null);
-      
-      // Join auction room
-      socket.emit('join_auction', {
-        auction_id: auction.auctionId,
-        token: tokens.idToken
-      });
+      socket.emit('join_auction', { auction_id: auction.auctionId, token: tokens.idToken });
     });
 
     socket.on('connect_error', (err: any) => {
-      console.error('WebSocket connect_error:', err);
       setIsConnected(false);
-      setConnectionError(err?.message || 'Failed to connect to live updates');
+      setConnectionError(err?.message || 'Failed to connect');
     });
 
-    socket.on('connected', (data: { message: string; user_id: string; username: string }) => {
-      console.log('Socket.IO connected:', data);
-    });
-
-    socket.on('joined_auction', (data: any) => {
-      console.log('Joined auction:', data);
-      if (data.current_high_bid) {
-        setCurrentBid(data.current_high_bid);
-      }
-      if (data.time_remaining !== undefined) {
-        setTimeRemaining(data.time_remaining);
-        const parsed =
-          typeof data.time_remaining === "number"
-            ? data.time_remaining
-            : /^\d+$/.test(String(data.time_remaining))
-              ? parseInt(String(data.time_remaining), 10)
-              : null;
-        setTimeRemainingSeconds(parsed);
-      }
-      if (typeof data.high_bidder_id === 'string') {
-        setHighBidderId(data.high_bidder_id || null);
-      } else if (data.high_bidder_id === null) {
-        setHighBidderId(null);
-      }
-      if (data.participant_count) {
-        setViewers(data.participant_count);
-      }
-      if (data.top_bids) {
-        setRecentBids(
-          data.top_bids.map((bid: any) => ({
-            userId: bid.user_id,
-            username:
-              bid.user_id && bid.user_id === currentUserId
-                ? "You"
-                : bidderAliasForAuction({ auctionId: auction.auctionId, userId: bid.user_id }),
-            amount: bid.amount || bid.high_bid,
-            timestamp: bid.timestamp || "now",
-          }))
-        );
-      }
-    });
-
-    // Bid updates
     socket.on('bid_update', (data: BidUpdate) => {
-      console.log('Bid update:', data);
       setCurrentBid(data.high_bid);
       setViewers(data.participant_count);
-      if (typeof data.high_bidder_id === 'string') {
-        setHighBidderId(data.high_bidder_id || null);
-      }
+      if (typeof data.high_bidder_id === 'string') setHighBidderId(data.high_bidder_id);
+      
       if (data.top_bids) {
-        setRecentBids(
-          data.top_bids.map((bid) => ({
+        setRecentBids(data.top_bids.map((bid) => ({
             userId: bid.user_id,
-            username:
-              bid.user_id && bid.user_id === currentUserId
-                ? "You"
-                : bidderAliasForAuction({ auctionId: auction.auctionId, userId: bid.user_id }),
+            username: bid.user_id === currentUserId ? "You" : bidderAliasForAuction({ auctionId: auction.auctionId, userId: bid.user_id }),
             amount: bid.amount,
             timestamp: bid.timestamp || "now",
-          }))
-        );
+        })));
       }
     });
 
-    // Chat messages
     socket.on('chat_message', (data: ChatMessage) => {
-      console.log('Chat message:', data);
-      setChatMessages(prev => [...prev, {
-        ...data,
-        username:
-          data.user_id && data.user_id === currentUserId
-            ? "You"
-            : bidderAliasForAuction({ auctionId: auction.auctionId, userId: data.user_id }),
-        id: `${data.user_id}-${data.timestamp}`
-      }]);
+        setChatMessages(prev => [...prev, {
+            ...data,
+            username: data.user_id === currentUserId ? "You" : bidderAliasForAuction({ auctionId: auction.auctionId, userId: data.user_id }),
+            id: `${data.user_id}-${data.timestamp}`
+        }]);
     });
 
-    // Timer updates
     socket.on('timer_update', (data: TimerUpdatePayload) => {
-      const seconds =
-        data.time_remaining ??
-        data.time_remaining_seconds ??
-        (typeof data.time_remaining_ms === "number" ? Math.floor(data.time_remaining_ms / 1000) : undefined);
-
-      // Note: allow 0 to flow through so UI can show "Ended".
-      if (seconds !== undefined) {
-        setTimeRemaining(seconds as any);
-        if (typeof seconds === "number") {
-          setTimeRemainingSeconds(seconds);
-        } else if (typeof seconds === "string" && /^\d+$/.test(seconds)) {
-          setTimeRemainingSeconds(parseInt(seconds, 10));
+        const seconds = data.time_remaining_seconds ?? (typeof data.time_remaining_ms === "number" ? Math.floor(data.time_remaining_ms / 1000) : undefined);
+        if (seconds !== undefined) {
+            setTimeRemainingSeconds(seconds);
         }
-      }
     });
 
-    // Auction ended
-    socket.on('auction_ended', (data: any) => {
-      console.log('Auction ended:', data);
-      // Handle auction end
-    });
-
-    // User joined/left
-    socket.on('user_joined', (data: { username: string; participant_count: number }) => {
-      setViewers(data.participant_count);
-    });
-
-    socket.on('user_left', (data: { username: string; participant_count: number }) => {
-      setViewers(data.participant_count);
-    });
-
-    // Error handling
-    socket.on('error', (error: { message: string }) => {
-      console.error('WebSocket error:', error);
-      setConnectionError(error?.message || 'WebSocket error');
-    });
-
-    socket.on('disconnect', () => {
-      console.log('WebSocket disconnected');
-      setIsConnected(false);
-    });
-
-    // Connect socket
     socket.connect();
 
-    // Cleanup on unmount
     return () => {
       if (socketRef.current) {
         socketRef.current.emit('leave_auction', { auction_id: auction.auctionId });
         socketRef.current.disconnect();
-        socketRef.current = null;
       }
     };
-  }, [tokens?.idToken, auction.auctionId]);
+  }, [tokens?.idToken, auction.auctionId, currentUserId]);
 
-  // Local 1-second tick between server updates so the timer stays live.
   useEffect(() => {
     const id = window.setInterval(() => {
       setTimeRemainingSeconds((prev) => {
         if (prev === null || prev === undefined) return prev;
-        const next = Math.max(0, prev - 1);
-        if (next !== prev) {
-          setTimeRemaining(next.toString());
-        }
-        return next;
+        return Math.max(0, prev - 1);
       });
     }, 1000);
     return () => window.clearInterval(id);
@@ -266,54 +196,65 @@ export function LiveAuctionRoom({ auction, onBack }: LiveAuctionRoomProps) {
 
   const handleSendChat = (message: string) => {
     if (socketRef.current && message.trim()) {
-      socketRef.current.emit('chat_message', {
-        auction_id: auction.auctionId,
-        message: message.trim()
-      });
+      socketRef.current.emit('chat_message', { auction_id: auction.auctionId, message: message.trim() });
     }
   };
 
   return (
-    <div className="pt-[73px] min-h-screen">
+    <div className="pt-[73px] min-h-screen bg-gray-50">
       <div className="max-w-[1800px] mx-auto px-6 py-6">
-        {/* Back Button */}
-        <Button
-          variant="ghost"
-          onClick={onBack}
-          className="mb-6 -ml-2"
-        >
+        <Button variant="ghost" onClick={onBack} className="mb-6 -ml-2">
           <ArrowLeft className="w-4 h-4 mr-2" />
           Back to Auctions
         </Button>
 
-        {/* Connection Status */}
-        {!isConnected && (
-          <div className="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg text-sm text-yellow-800">
-            {connectionError ? `Live updates unavailable: ${connectionError}` : 'Connecting to auction...'}
-          </div>
-        )}
-
-        {/* Three Column Layout */}
         <div className="grid grid-cols-12 gap-6 mb-6">
-          {/* Left: Chat Panel */}
           <div className="col-span-3 h-[700px]">
-            <ChatPanel 
-              messages={chatMessages}
-              onSendMessage={handleSendChat}
-            />
+            <ChatPanel messages={chatMessages} onSendMessage={handleSendChat} />
           </div>
 
-          {/* Center: Video Stream */}
-          <div className="col-span-6">
-            <VideoStream
-              viewers={viewers}
-              timeRemaining={formatTimeRemaining(timeRemaining)}
-              imageUrl={auction.image}
-            />
+          <div className="col-span-6 bg-white p-4 rounded-xl shadow-sm border border-gray-100 h-[700px] flex flex-col">
+            <div className="relative flex-grow">
+              <ImageGallery
+                items={galleryImages}
+                showPlayButton={false}
+                thumbnailPosition="left"
+                showIndex={true}
+                additionalClass="h-full"
+              />
+               <div className="absolute top-4 left-16 z-10 bg-black/60 px-3 py-1 rounded-full text-white text-sm flex items-center gap-2">
+                 <span className="w-2 h-2 bg-red-500 rounded-full animate-pulse"/>
+                 LIVE | {viewers} Viewers
+               </div>
+               <div className="absolute top-4 right-4 z-10 bg-black/60 px-3 py-1 rounded-full text-white text-sm font-mono">
+                 {formatTimeRemaining(timeRemainingSeconds ?? timeRemaining)}
+               </div>
+            </div>
           </div>
 
-          {/* Right: Bidding Panel */}
-          <div className="col-span-3 h-[700px]">
+          {/* RIGHT SIDEBAR */}
+          <div className="col-span-3 h-[700px] flex flex-col gap-4 overflow-y-auto">
+            {/* Host Controls: Styled to match your BiddingPanel look */}
+            {isHost && (
+              <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex-shrink-0">
+                <div className="flex items-center gap-2 mb-3">
+                  <AlertTriangle className="w-4 h-4 text-orange-500" />
+                  <span className="text-sm font-semibold text-gray-900">Host Controls</span>
+                </div>
+                <Button 
+                  variant="destructive" 
+                  className="w-full h-12 font-bold"
+                  onClick={handleCloseAuction}
+                  disabled={isClosing}
+                >
+                  {isClosing ? "Closing..." : "Close Auction"}
+                </Button>
+                <p className="text-[11px] text-muted-foreground mt-2 leading-tight">
+                  Ends bidding immediately and processes the current winner.
+                </p>
+              </div>
+            )}
+
             <BiddingPanel
               title={auction.title}
               currentBid={currentBid}
@@ -328,17 +269,16 @@ export function LiveAuctionRoom({ auction, onBack }: LiveAuctionRoomProps) {
           </div>
         </div>
 
-        {/* Bottom: Item Details */}
         <ItemDetailsSection
           description={auction.description}
           category={auction.category}
-          condition={auction.condition}
+          condition={auction.condition} 
           year={auction.year}
-          seller={auction.seller}
+          seller={auction.seller} 
           auctionId={auction.auctionId}
           totalBids={auction.totalBids}
           watchCount={viewers}
-          startTime={auction.startTime}
+          startTime={auction.startTime} 
           endTime={auction.endTime}
         />
       </div>

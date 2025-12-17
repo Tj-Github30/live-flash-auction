@@ -14,6 +14,9 @@ export function NewListing() {
 
   const [images, setImages] = useState<string[]>([]);
   const [title, setTitle] = useState("");
+  const [sellerName, setSellerName] = useState(""); 
+  // 1. New State for Condition
+  const [condition, setCondition] = useState("");
   const [description, setDescription] = useState("");
   const [category, setCategory] = useState("");
   const [startingBid, setStartingBid] = useState("");
@@ -25,11 +28,9 @@ export function NewListing() {
   const [success, setSuccess] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // --- DEBUGGER: Run this once to see what is actually in storage ---
   useEffect(() => {
     console.log("--- STORAGE DEBUG ---");
     console.log("LocalStorage Keys:", Object.keys(localStorage));
-    // If you are using sessionStorage, this will show it:
     console.log("SessionStorage Keys:", Object.keys(sessionStorage));
   }, []);
 
@@ -47,14 +48,12 @@ export function NewListing() {
       reader.readAsDataURL(file);
     });
 
-    // CRITICAL FIX: Reset the input value so you can upload the same file again if needed
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
     }
   };
 
   const triggerFileUpload = () => {
-    // Debugging: Check if the ref exists
     if (fileInputRef.current) {
       fileInputRef.current.click();
     } else {
@@ -83,50 +82,34 @@ export function NewListing() {
     const n = Number(customDurationValue);
     if (!Number.isFinite(n) || n <= 0) return null;
 
-    // Allow smaller-than-1hr auctions via "Custom" (user requested).
     const seconds = customDurationUnit === "hours" ? Math.round(n * 3600) : Math.round(n * 60);
     return seconds > 0 ? seconds : null;
   };
 
-  // --- IMPROVED TOKEN FINDER (DEEP SCAN) ---
   const getAuthToken = () => {
     console.log("Starting Token Search...");
-
-    // Helper to check if a value looks like a JWT (starts with "ey...")
     const isToken = (val: string | null) => val && val.startsWith("ey");
 
-    // 1. Try Direct Keys in LocalStorage & SessionStorage
     const directKeys = ["idToken", "accessToken", "token", "authToken"];
     for (const key of directKeys) {
       if (isToken(localStorage.getItem(key))) return localStorage.getItem(key);
       if (isToken(sessionStorage.getItem(key))) return sessionStorage.getItem(key);
     }
 
-    // 2. Scan ALL LocalStorage Keys
     for (let i = 0; i < localStorage.length; i++) {
       const key = localStorage.key(i);
       if (!key) continue;
       const val = localStorage.getItem(key);
       
-      // A. Check if the value itself is the token (Cognito style)
       if ((key.includes("idToken") || key.includes("accessToken")) && isToken(val)) {
-        console.log(`Found token in direct key: ${key}`);
         return val;
       }
 
-      // B. DEEP SCAN: Check if value is a JSON object containing the token
-      // (Common in Redux Persist or Auth Libraries)
       try {
-        if (val && val.includes("{")) { // Optimization: only parse if looks like object
+        if (val && val.includes("{")) {
           const parsed = JSON.parse(val);
-          if (isToken(parsed.idToken)) {
-            console.log(`Found token INSIDE JSON object at key: ${key}`);
-            return parsed.idToken;
-          }
-          if (isToken(parsed.accessToken)) {
-            console.log(`Found token INSIDE JSON object at key: ${key}`);
-            return parsed.accessToken;
-          }
+          if (isToken(parsed.idToken)) return parsed.idToken;
+          if (isToken(parsed.accessToken)) return parsed.accessToken;
           if (isToken(parsed.token)) return parsed.token;
         }
       } catch (e) {
@@ -134,7 +117,6 @@ export function NewListing() {
       }
     }
 
-    // 3. Scan SessionStorage (just in case)
     for (let i = 0; i < sessionStorage.length; i++) {
       const key = sessionStorage.key(i);
       if (!key) continue;
@@ -157,6 +139,15 @@ export function NewListing() {
       setError("Please enter an item title");
       return;
     }
+    if (!sellerName.trim()) {
+      setError("Please enter a seller name");
+      return;
+    }
+    // 2. Validate Condition
+    if (!condition.trim()) {
+      setError("Please enter the item condition");
+      return;
+    }
     if (!category) {
       setError("Please select a category");
       return;
@@ -176,27 +167,26 @@ export function NewListing() {
     setIsLoading(true);
 
     try {
-      // Get auth token using the new Deep Scan function
       const authToken = getAuthToken();
       
       if (!authToken) {
-        // Log the available keys to help debug
         console.error("LocalStorage Keys Available:", Object.keys(localStorage));
         throw new Error("Could not find login credentials. Please refresh the page and login again.");
       }
 
-      // Prepare payload for API
+      // 3. Add Condition to payload
       const payload = {
         title: title.trim(),
+        seller_name: sellerName.trim(), 
         description: description.trim() || undefined,
         category: category,
+        condition: condition.trim(), // <--- Sending condition
         starting_bid: parseFloat(startingBid),
         duration: durationSeconds,
-        image_url: images.length > 0 ? images[0] : "", // Main image
-        images: images
+        image_url: images.length > 0 ? images[0] : "",
+        images: images.length > 1 ? images.slice(1) : []
       };
 
-      // Call your backend API
       const response = await fetch(`${API_BASE_URL}/api/auctions`, {
         method: "POST",
         headers: {
@@ -212,12 +202,10 @@ export function NewListing() {
         throw new Error(data.error || "Failed to create auction");
       }
 
-      // Success!
       console.log("Auction created:", data);
       setSuccess(true);
       setError("");
 
-      // Let other parts of the app (BuyPage/ActiveListings/etc) refresh without a full page reload.
       try {
         window.dispatchEvent(new CustomEvent("auction:created", { detail: data }));
       } catch {
@@ -226,6 +214,8 @@ export function NewListing() {
       
       // Reset form
       setTitle("");
+      setSellerName(""); 
+      setCondition(""); // Reset condition
       setDescription("");
       setCategory("");
       setStartingBid("");
@@ -234,10 +224,8 @@ export function NewListing() {
       setCustomDurationUnit("minutes");
       setImages([]);
 
-      // Redirect to auction page after 2 seconds
       setTimeout(() => {
         if (data.auction_id) {
-          // NOTE: the app route is `/auction/:auctionId`
           navigate(`/auction/${data.auction_id}`, { replace: true });
         }
       }, 2000);
@@ -267,7 +255,6 @@ export function NewListing() {
               Upload high-quality images of your item (up to 10 images)
             </p>
 
-            {/* Hidden file input */}
             <input
               ref={fileInputRef}
               type="file"
@@ -285,7 +272,6 @@ export function NewListing() {
                     alt=""
                     className="w-full h-full object-cover"
                     onError={(e) => {
-                      // If a local preview ever fails, just hide it.
                       (e.currentTarget as HTMLImageElement).style.display = "none";
                     }}
                   />
@@ -325,15 +311,16 @@ export function NewListing() {
             />
           </div>
 
-          {/* Description */}
+          {/* Seller Name */}
           <div>
-            <Label htmlFor="description">Description</Label>
-            <Textarea
-              id="description"
-              placeholder="Provide detailed information about the item's condition, provenance, and any relevant details..."
-              className="mt-2 min-h-32"
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
+            <Label htmlFor="sellerName">Seller Name</Label>
+            <Input
+              id="sellerName"
+              type="text"
+              placeholder="e.g., John Doe"
+              className="mt-2"
+              value={sellerName}
+              onChange={(e) => setSellerName(e.target.value)}
             />
           </div>
 
@@ -355,6 +342,31 @@ export function NewListing() {
                 <SelectItem value="books">Books & Manuscripts</SelectItem>
               </SelectContent>
             </Select>
+          </div>
+
+          {/* 4. New Condition Field */}
+          <div>
+            <Label htmlFor="condition">Condition</Label>
+            <Input
+              id="condition"
+              type="text"
+              placeholder="e.g., Brand New, Like New, Used - Good Condition"
+              className="mt-2"
+              value={condition}
+              onChange={(e) => setCondition(e.target.value)}
+            />
+          </div>
+
+          {/* Description */}
+          <div>
+            <Label htmlFor="description">Description</Label>
+            <Textarea
+              id="description"
+              placeholder="Provide detailed information about the item's condition, provenance, and any relevant details..."
+              className="mt-2 min-h-32"
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+            />
           </div>
 
           {/* Pricing */}

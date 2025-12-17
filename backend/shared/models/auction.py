@@ -1,7 +1,7 @@
 """
 Auction model
 """
-from sqlalchemy import Column, String, Text, Integer, DECIMAL, DateTime, ForeignKey
+from sqlalchemy import Column, String, Text, Integer, DECIMAL, DateTime, ForeignKey, JSON
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
 import uuid
@@ -23,7 +23,10 @@ class Auction(Base):
     winner_id = Column(GUID(), ForeignKey("users.user_id"))
     winning_bid = Column(DECIMAL(10, 2))
     ended_at = Column(DateTime(timezone=True))
-    
+    gallery_images = Column(JSON, nullable=True)
+    seller_name = Column(String(100), nullable=False)
+    condition = Column(String(100), nullable=False)
+
     # --- ADDED: Image URL Support ---
     image_url = Column(String(2048), nullable=True)
 
@@ -46,8 +49,12 @@ class Auction(Base):
             "winner_id": str(self.winner_id) if self.winner_id else None,
             "winning_bid": float(self.winning_bid) if self.winning_bid else None,
             "ended_at": self.ended_at.isoformat() if self.ended_at else None,
+            "seller_name": self.seller_name,
+            "condition": self.condition,
             # --- ADDED: Return image to frontend ---
-            "image_url": self.image_url
+            "image_url": self.image_url,
+            "gallery_images": self.gallery_images
+
         }
         return data
 
