@@ -23,6 +23,16 @@ export function ActiveListings() {
     fetchActiveListings();
   }, []);
 
+  useEffect(() => {
+    const handler = () => fetchActiveListings();
+    window.addEventListener("auction:created", handler as EventListener);
+    const id = window.setInterval(fetchActiveListings, 10_000);
+    return () => {
+      window.removeEventListener("auction:created", handler as EventListener);
+      window.clearInterval(id);
+    };
+  }, []);
+
   const fetchActiveListings = async () => {
     try {
       setLoading(true);

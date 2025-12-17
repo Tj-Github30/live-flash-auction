@@ -3,6 +3,7 @@ Auction Management API Routes
 """
 from flask import Blueprint, request, jsonify
 from pydantic import ValidationError
+from sqlalchemy.exc import SQLAlchemyError
 from shared.auth.cognito import require_auth
 from shared.schemas.auction_schemas import AuctionCreateRequest, AuctionCreateResponse, AuctionResponse
 from app.services.auction_service import AuctionService
@@ -29,7 +30,7 @@ def create_auction():
         "starting_bid": decimal
     }
 
-    Returns auction details with IVS streaming credentials
+    Returns auction details
     """
     try:
         # Get user info from token
@@ -54,6 +55,23 @@ def create_auction():
         return jsonify({"error": "Validation error", "details": e.errors()}), 400
     except AuctionError as e:
         return jsonify(e.to_dict()), e.status_code
+    except SQLAlchemyError as e:
+        # Common production issue: DB schema drift (e.g., missing `image_url` column)
+        msg = str(getattr(e, "orig", e))
+        logger.error(f"Database error creating auction: {msg}", exc_info=True)
+        if "image_url" in msg and ("does not exist" in msg or "UndefinedColumn" in msg):
+            return jsonify({
+                "error": "Database schema is missing the `image_url` column.",
+                "action": "Run: ALTER TABLE auctions ADD COLUMN IF NOT EXISTS image_url VARCHAR(2048);"
+            }), 500
+        # Common production issue: FK mismatch between Cognito sub and users.user_id
+        if "ForeignKeyViolation" in msg or "violates foreign key constraint" in msg:
+            if "auctions_host_user_id_fkey" in msg or "host_user_id" in msg:
+                return jsonify({
+                    "error": "Your user record is not synced correctly in the database (host_user_id not found in users).",
+                    "action": "Redeploy the latest backend (includes user sync fix), then logout/login and retry creating the auction."
+                }), 500
+        return jsonify({"error": "Database error creating auction"}), 500
     except Exception as e:
         logger.error(f"Error creating auction: {e}", exc_info=True)
         return jsonify({"error": "Failed to create auction"}), 500

@@ -23,6 +23,7 @@ export interface AuctionData {
   condition: string;
   year?: string;
   seller: string;
+  hostUserId?: string;
   auctionId: string;
   totalBids: number;
   watchCount: number;
@@ -78,6 +79,7 @@ export function LiveAuctionRoom({ auction, onBack }: LiveAuctionRoomProps) {
   const [highBidderId, setHighBidderId] = useState<string | null>(null);
 
   const currentUserId = user?.sub || null;
+  const isHost = !!currentUserId && !!auction.hostUserId && currentUserId === auction.hostUserId;
 
   useEffect(() => {
     if (!tokens?.idToken) {
@@ -289,6 +291,7 @@ export function LiveAuctionRoom({ auction, onBack }: LiveAuctionRoomProps) {
               recentBids={recentBids}
               currentUserId={currentUserId || undefined}
               highBidderId={highBidderId || undefined}
+              isHost={isHost}
             />
           </div>
         </div>

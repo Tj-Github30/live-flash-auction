@@ -38,9 +38,6 @@ class Settings(BaseSettings):
     AWS_ACCESS_KEY_ID: str = ""
     AWS_SECRET_ACCESS_KEY: str = ""
 
-    # AWS IVS
-    IVS_CHANNEL_TYPE: str = "STANDARD"
-
     # AWS SQS
     SQS_BID_QUEUE_URL: str = ""
     SQS_NOTIFICATION_QUEUE_URL: str = ""

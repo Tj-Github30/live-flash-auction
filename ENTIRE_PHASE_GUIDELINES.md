@@ -12,7 +12,7 @@
 11. Phase 11: Backend Services
 12. Phase 12: Update Frontend with backend url
 13. Phase 13: Testing 
-14. Phase 14 : IVS
+14. Phase 14 : (removed)
 
 ## 📊 Data Storage Architecture
 
@@ -817,9 +817,7 @@ ls -lh notifications-lambda.zip
      winner_id UUID REFERENCES users(user_id),
      winning_bid DECIMAL(10,2),
      ended_at TIMESTAMP WITH TIME ZONE,
-     ivs_channel_arn VARCHAR(255),
-     ivs_stream_key TEXT,
-     ivs_playback_url TEXT
+     image_url VARCHAR(2048)
    );
 
    CREATE INDEX idx_auctions_host ON auctions(host_user_id);
@@ -1227,8 +1225,7 @@ exit
 
 ---
 
-## Phase 14: IVS
-Refer to IVS Setup document
+ 
 
 
 ### 💡 Cost Saving Tips:

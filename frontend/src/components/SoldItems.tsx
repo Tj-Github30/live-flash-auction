@@ -24,6 +24,16 @@ export function SoldItems() {
     fetchSoldItems();
   }, []);
 
+  useEffect(() => {
+    const handler = () => fetchSoldItems();
+    window.addEventListener("auction:ended", handler as EventListener);
+    const id = window.setInterval(fetchSoldItems, 15_000);
+    return () => {
+      window.removeEventListener("auction:ended", handler as EventListener);
+      window.clearInterval(id);
+    };
+  }, []);
+
   const fetchSoldItems = async () => {
     try {
       setLoading(true);

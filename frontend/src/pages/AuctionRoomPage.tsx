@@ -51,6 +51,7 @@ export const AuctionRoomPage: React.FC = () => {
           condition: auction.condition || "",
           year: auction.year,
           seller: auction.host_username || "Unknown",
+          hostUserId: auction.host_user_id,
           totalBids: state?.bid_count || auction.bid_count || 0,
           watchCount: state?.participant_count || 0,
           startTime: formatDate(auction.created_at),

@@ -8,11 +8,12 @@ import base64
 import uuid
 import os
 from sqlalchemy.orm import Session
+from sqlalchemy import text
+from sqlalchemy.exc import SQLAlchemyError
 from shared.database.connection import SessionLocal
 from shared.models.auction import Auction
 from shared.models.user import User
 from shared.redis.client import RedisHelper, RedisKeys
-from shared.aws.ivs_client import ivs_client
 from shared.schemas.auction_schemas import AuctionCreateRequest
 from shared.utils.errors import AuctionNotFoundError, ForbiddenError
 from shared.utils.helpers import get_current_timestamp_ms, calculate_time_remaining, parse_decimal
@@ -58,12 +59,14 @@ class AuctionService:
             filename = f"auctions/{uuid.uuid4()}.{file_ext}"
 
             # 5. Upload to S3
+            # NOTE: Do not set ACL='public-read' here.
+            # Many modern S3 buckets have Object Ownership "Bucket owner enforced" (ACLs disabled),
+            # and PutObjectAcl will fail with AccessDenied / AccessControlListNotSupported.
             self.s3_client.put_object(
                 Bucket=self.bucket_name,
                 Key=filename,
                 Body=image_data,
-                ContentType=f"image/{file_ext}",
-                ACL='public-read' # Make it viewable by public
+                ContentType=f"image/{file_ext}"
             )
 
             # 6. Return the public URL
@@ -73,12 +76,31 @@ class AuctionService:
             logger.error(f"Image upload failed: {e}")
             return None
 
+    def _ensure_image_url_column(self):
+        """
+        Best-effort runtime migration for legacy DBs.
+        If the DB user lacks ALTER privileges, we log and continue; the subsequent INSERT
+        will fail with a clear error from the API layer.
+        """
+        try:
+            db = SessionLocal()
+            try:
+                db.execute(text("ALTER TABLE auctions ADD COLUMN IF NOT EXISTS image_url VARCHAR(2048);"))
+                db.commit()
+            finally:
+                db.close()
+        except Exception as e:
+            logger.warning(f"DB schema check failed (image_url column): {e}")
+
     def create_auction(self, host_user_id: str, auction_data: AuctionCreateRequest) -> Dict:
         """
-        Create a new auction with IVS channel, Images, and Redis initialization
+        Create a new auction with Images and Redis initialization.
         """
         db = SessionLocal()
         try:
+            # Ensure DB schema supports image_url (safe no-op if already present)
+            self._ensure_image_url_column()
+
             # --- STEP 1: Upload Image to S3 ---
             main_image_url = None
             if auction_data.image_url:
@@ -87,16 +109,7 @@ class AuctionService:
             # (Optional) Handle multiple images if your DB supports it
             # additional_images = [self._upload_base64_image(img) for img in auction_data.images]
 
-            # --- STEP 2: Create IVS channel ---
-            ivs_channel = ivs_client.create_channel(
-                auction_id=str(host_user_id),
-                auction_title=auction_data.title
-            )
-
-            if not ivs_channel:
-                raise Exception("Failed to create IVS channel")
-
-            # --- STEP 3: Create auction in database ---
+            # --- STEP 2: Create auction in database ---
             auction = Auction(
                 host_user_id=host_user_id,
                 title=auction_data.title,
@@ -106,10 +119,7 @@ class AuctionService:
                 starting_bid=auction_data.starting_bid,
                 status="live",
                 # Save the S3 URL here
-                image_url=main_image_url, 
-                ivs_channel_arn=ivs_channel["channel_arn"],
-                ivs_stream_key=ivs_channel["stream_key"],
-                ivs_playback_url=ivs_channel["playback_url"]
+                image_url=main_image_url,
             )
 
             db.add(auction)
@@ -118,11 +128,13 @@ class AuctionService:
 
             auction_id = str(auction.auction_id)
 
-            # --- STEP 4: Initialize Redis ---
+            # --- STEP 3: Initialize Redis ---
             start_time_ms = get_current_timestamp_ms()
             end_time_ms = start_time_ms + (auction_data.duration * 1000)
 
             state_data = {
+                # Used by bid-processing to enforce "host cannot bid" without extra DB round-trips.
+                "host_user_id": str(host_user_id),
                 "status": "live",
                 "current_high_bid": str(auction_data.starting_bid),
                 "high_bidder_id": "",
@@ -156,10 +168,6 @@ class AuctionService:
                 "image_url": auction.image_url, # Return the URL to frontend
                 "starting_bid": float(auction.starting_bid),
                 "status": auction.status,
-                "ivs_channel_arn": auction.ivs_channel_arn,
-                "ivs_stream_key": auction.ivs_stream_key,
-                "ivs_playback_url": auction.ivs_playback_url,
-                "ivs_ingest_endpoint": ivs_channel.get("ingest_endpoint")
             }
 
         except Exception as e:
@@ -179,7 +187,7 @@ class AuctionService:
             auction = db.query(Auction).filter(Auction.auction_id == auction_id).first()
             if not auction:
                 return None
-            return auction.to_dict(include_stream_key=False)
+            return auction.to_dict()
         finally:
             db.close()
 

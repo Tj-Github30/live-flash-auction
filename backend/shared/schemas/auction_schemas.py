@@ -53,7 +53,6 @@ class AuctionResponse(BaseModel):
     winner_id: Optional[str] = None
     winning_bid: Optional[Decimal] = None
     ended_at: Optional[str] = None
-    ivs_playback_url: Optional[str] = None
     
     # --- ADDED: Return images to frontend ---
     image_url: Optional[str] = None
@@ -64,10 +63,8 @@ class AuctionResponse(BaseModel):
 
 
 class AuctionCreateResponse(AuctionResponse):
-    """Extended response for auction creation (includes stream key)"""
-    ivs_stream_key: str
-    ivs_channel_arn: str
-    ivs_ingest_endpoint: Optional[str] = None
+    """Response for auction creation (same fields as AuctionResponse)."""
+    pass
 
 
 class AuctionStateResponse(BaseModel):

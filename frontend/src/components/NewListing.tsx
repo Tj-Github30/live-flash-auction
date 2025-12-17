@@ -1,5 +1,6 @@
 import { Loader2, Upload, X } from 'lucide-react';
 import { useRef, useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
@@ -9,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
 export function NewListing() {
+  const navigate = useNavigate();
 
   const [images, setImages] = useState<string[]>([]);
   const [title, setTitle] = useState("");
@@ -16,6 +18,8 @@ export function NewListing() {
   const [category, setCategory] = useState("");
   const [startingBid, setStartingBid] = useState("");
   const [duration, setDuration] = useState("");
+  const [customDurationValue, setCustomDurationValue] = useState<string>("");
+  const [customDurationUnit, setCustomDurationUnit] = useState<"minutes" | "hours">("minutes");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState(false);
@@ -67,6 +71,21 @@ export function NewListing() {
       "24h": 86400
     };
     return durationMap[durationStr] || 3600;
+  };
+
+  const getDurationSeconds = (): number | null => {
+    if (!duration) return null;
+
+    if (duration !== "custom") {
+      return convertDurationToSeconds(duration);
+    }
+
+    const n = Number(customDurationValue);
+    if (!Number.isFinite(n) || n <= 0) return null;
+
+    // Allow smaller-than-1hr auctions via "Custom" (user requested).
+    const seconds = customDurationUnit === "hours" ? Math.round(n * 3600) : Math.round(n * 60);
+    return seconds > 0 ? seconds : null;
   };
 
   // --- IMPROVED TOKEN FINDER (DEEP SCAN) ---
@@ -146,8 +165,11 @@ export function NewListing() {
       setError("Please enter a valid starting bid");
       return;
     }
-    if (!duration) {
-      setError("Please select an auction duration");
+    const durationSeconds = getDurationSeconds();
+    if (!durationSeconds) {
+      setError(duration === "custom"
+        ? "Please enter a valid custom duration"
+        : "Please select an auction duration");
       return;
     }
 
@@ -169,7 +191,7 @@ export function NewListing() {
         description: description.trim() || undefined,
         category: category,
         starting_bid: parseFloat(startingBid),
-        duration: convertDurationToSeconds(duration),
+        duration: durationSeconds,
         image_url: images.length > 0 ? images[0] : "", // Main image
         images: images
       };
@@ -194,6 +216,13 @@ export function NewListing() {
       console.log("Auction created:", data);
       setSuccess(true);
       setError("");
+
+      // Let other parts of the app (BuyPage/ActiveListings/etc) refresh without a full page reload.
+      try {
+        window.dispatchEvent(new CustomEvent("auction:created", { detail: data }));
+      } catch {
+        // ignore
+      }
       
       // Reset form
       setTitle("");
@@ -201,12 +230,15 @@ export function NewListing() {
       setCategory("");
       setStartingBid("");
       setDuration("");
+      setCustomDurationValue("");
+      setCustomDurationUnit("minutes");
       setImages([]);
 
       // Redirect to auction page after 2 seconds
       setTimeout(() => {
         if (data.auction_id) {
-          window.location.href = `/auctions/${data.auction_id}`;
+          // NOTE: the app route is `/auction/:auctionId`
+          navigate(`/auction/${data.auction_id}`, { replace: true });
         }
       }, 2000);
 
@@ -345,8 +377,45 @@ export function NewListing() {
                 <SelectItem value="6h">6 Hours</SelectItem>
                 <SelectItem value="12h">12 Hours</SelectItem>
                 <SelectItem value="24h">24 Hours</SelectItem>
+                <SelectItem value="custom">Custom</SelectItem>
               </SelectContent>
             </Select>
+
+            {duration === "custom" && (
+              <div className="mt-3 flex gap-3 items-end">
+                <div className="flex-1">
+                  <Label htmlFor="custom-duration" className="text-xs text-muted-foreground">
+                    Custom duration
+                  </Label>
+                  <Input
+                    id="custom-duration"
+                    type="number"
+                    min="1"
+                    step="1"
+                    placeholder={customDurationUnit === "hours" ? "e.g., 2" : "e.g., 30"}
+                    className="mt-2"
+                    value={customDurationValue}
+                    onChange={(e) => setCustomDurationValue(e.target.value)}
+                  />
+                </div>
+
+                <div className="w-40">
+                  <Label className="text-xs text-muted-foreground">Unit</Label>
+                  <Select
+                    value={customDurationUnit}
+                    onValueChange={(v) => setCustomDurationUnit(v as "minutes" | "hours")}
+                  >
+                    <SelectTrigger className="mt-2">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="minutes">Minutes</SelectItem>
+                      <SelectItem value="hours">Hours</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Actions */}

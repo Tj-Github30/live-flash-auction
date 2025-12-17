@@ -14,6 +14,7 @@ interface AuctionCardProps {
 
 export function AuctionCard({ image, title, currentBid, timeRemaining, viewers, onClick }: AuctionCardProps) {
   const [isWatchlisted, setIsWatchlisted] = useState(false);
+  const isLive = timeRemaining !== "Ended";
 
   return (
     <div 
@@ -29,10 +30,12 @@ export function AuctionCard({ image, title, currentBid, timeRemaining, viewers, 
         />
         
         {/* LIVE Badge */}
-        <div className="absolute top-3 left-3 flex items-center gap-1.5 bg-white/95 backdrop-blur-sm px-2.5 py-1 rounded-full">
-          <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
-          <span className="text-xs tracking-wide">LIVE</span>
-        </div>
+        {isLive && (
+          <div className="absolute top-3 left-3 flex items-center gap-1.5 bg-white/95 backdrop-blur-sm px-2.5 py-1 rounded-full">
+            <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
+            <span className="text-xs tracking-wide">LIVE</span>
+          </div>
+        )}
 
         {/* Watchlist Button */}
         <button
