@@ -115,6 +115,13 @@ class AuctionService:
                 except Exception:
                     end_time_ms = None
 
+            # Fallback: derive end_time from DB created_at + duration if Redis lacks it.
+            if end_time_ms is None and getattr(auction, "created_at", None) and getattr(auction, "duration", None):
+                try:
+                    end_time_ms = int(auction.created_at.timestamp() * 1000) + int(auction.duration) * 1000
+                except Exception:
+                    end_time_ms = None
+
             if end_time_ms is not None and end_time_ms > 0:
                 data["end_time_ms"] = end_time_ms
                 data["time_remaining_seconds"] = calculate_time_remaining(end_time_ms)

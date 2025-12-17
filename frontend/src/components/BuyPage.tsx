@@ -43,13 +43,42 @@ export function BuyPage({ onAuctionClick }: BuyPageProps) {
     const handler = () => fetchAuctions();
     window.addEventListener("auction:created", handler as EventListener);
     // Keep lists fresh (time remaining + auto-drop ended auctions from "live" view)
-    const id = window.setInterval(fetchAuctions, 10_000);
+    const id = window.setInterval(fetchAuctions, 5_000);
     return () => {
       window.removeEventListener("auction:created", handler as EventListener);
       window.clearInterval(id);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedCategory]);
+
+  // Local 1s tick so timers/countdowns stay live between network refreshes.
+  useEffect(() => {
+    const tick = window.setInterval(() => {
+      let newlyEnded: Auction[] = [];
+      setLiveAuctions((prev) => {
+        const nextLive: Auction[] = [];
+        for (const a of prev) {
+          const hasTimer = typeof a.time_remaining_seconds === "number";
+          const nextSeconds = hasTimer ? Math.max(0, (a.time_remaining_seconds as number) - 1) : undefined;
+          if (hasTimer && nextSeconds === 0) {
+            newlyEnded.push({ ...a, time_remaining_seconds: 0, status: "closed" });
+          } else {
+            nextLive.push({
+              ...a,
+              time_remaining_seconds: nextSeconds === undefined ? a.time_remaining_seconds : nextSeconds,
+            });
+          }
+        }
+        return nextLive;
+      });
+
+      if (newlyEnded.length > 0) {
+        setEndedAuctions((prev) => [...newlyEnded, ...prev]);
+      }
+    }, 1000);
+
+    return () => window.clearInterval(tick);
+  }, []);
 
   const fetchAuctions = async () => {
     try {

@@ -20,7 +20,7 @@ spec:
         image: 938041861431.dkr.ecr.us-east-1.amazonaws.com/live-auction/auction-management-service:latest
         ports:
         - containerPort: 8000
-        env: 
+        env:
         - name: DATABASE_URL
           valueFrom:
             secretKeyRef:
