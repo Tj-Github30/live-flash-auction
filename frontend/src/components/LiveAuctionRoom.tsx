@@ -277,6 +277,7 @@ export function LiveAuctionRoom({ auction, onBack }: LiveAuctionRoomProps) {
             <VideoStream
               viewers={viewers}
               timeRemaining={formatTimeRemaining(timeRemaining)}
+              imageUrl={auction.image}
             />
           </div>
 

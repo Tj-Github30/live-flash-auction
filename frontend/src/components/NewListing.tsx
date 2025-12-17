@@ -280,7 +280,15 @@ export function NewListing() {
             <div className="grid grid-cols-5 gap-4">
               {images.map((image, index) => (
                 <div key={index} className="relative aspect-square bg-secondary rounded-lg overflow-hidden group">
-                  <img src={image} alt="" className="w-full h-full object-cover" />
+                  <img
+                    src={image}
+                    alt=""
+                    className="w-full h-full object-cover"
+                    onError={(e) => {
+                      // If a local preview ever fails, just hide it.
+                      (e.currentTarget as HTMLImageElement).style.display = "none";
+                    }}
+                  />
                   <button
                     type="button"
                     onClick={() => handleRemoveImage(index)}

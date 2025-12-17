@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Clock, Eye, MoreVertical } from 'lucide-react';
 import { Button } from './ui/button';
 import { api, apiJson } from '../utils/api';
+import { NO_IMAGE_DATA_URI } from '../utils/images';
 
 interface Listing {
   auction_id: string;
@@ -100,7 +101,7 @@ export function ActiveListings() {
               <div className="col-span-5 flex items-center gap-4">
                 <div className="w-20 h-20 rounded-lg overflow-hidden bg-secondary flex-shrink-0">
                   <img
-                    src={item.image_url || 'https://via.placeholder.com/80x80?text=No+Image'}
+                    src={item.image_url || NO_IMAGE_DATA_URI}
                     alt={item.title}
                     className="w-full h-full object-cover"
                   />

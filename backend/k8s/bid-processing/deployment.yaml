@@ -32,6 +32,8 @@ spec:
               key: redis-url
         - name: AWS_REGION
           value: "us-east-1"
+        - name: DYNAMODB_BIDS_TABLE
+          value: "bids_history"
         - name: COGNITO_USER_POOL_ID
           valueFrom:
             secretKeyRef:

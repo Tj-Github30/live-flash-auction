@@ -136,6 +136,26 @@ def list_auctions():
         return jsonify({"error": "Failed to list auctions"}), 500
 
 
+@bp.route("/batch", methods=["POST"])
+@require_auth
+def batch_get_auctions():
+    """
+    Fetch multiple auctions by ID (used by My Bids page).
+    Body: { "auction_ids": ["uuid", ...] }
+    """
+    try:
+        data = request.get_json() or {}
+        auction_ids = data.get("auction_ids") or []
+        if not isinstance(auction_ids, list):
+            return jsonify({"error": "auction_ids must be a list"}), 400
+
+        auctions = auction_service.get_auctions_by_ids(auction_ids)
+        return jsonify({"auctions": auctions}), 200
+    except Exception as e:
+        logger.error(f"Error batch fetching auctions: {e}", exc_info=True)
+        return jsonify({"error": "Failed to fetch auctions"}), 500
+
+
 @bp.route("/<auction_id>/state", methods=["GET"])
 def get_auction_state(auction_id: str):
     """
