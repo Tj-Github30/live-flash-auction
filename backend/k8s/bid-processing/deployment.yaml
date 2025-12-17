@@ -27,6 +27,18 @@ spec:
               key: redis-url
         - name: AWS_REGION
           value: "us-east-1"
+        - name: COGNITO_USER_POOL_ID
+          valueFrom:
+            secretKeyRef:
+              name: auction-secrets
+              key: cognito-user-pool-id
+        - name: COGNITO_APP_CLIENT_ID
+          valueFrom:
+            secretKeyRef:
+              name: auction-secrets
+              key: cognito-app-client-id
+        - name: COGNITO_REGION
+          value: "us-east-1"
         - name: SQS_BID_QUEUE_URL
           valueFrom:
             secretKeyRef:

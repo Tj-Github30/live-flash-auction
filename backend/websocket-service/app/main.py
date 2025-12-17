@@ -21,12 +21,16 @@ logger = setup_logger("websocket-service")
 # Create Flask app
 app = Flask(__name__)
 app.config["SECRET_KEY"] = settings.FLASK_SECRET_KEY or os.getenv("FLASK_SECRET_KEY", "dev-secret-key-change-in-production")
-CORS(app, origins=settings.cors_origins_list)
+
+# CORS: allow either a configured list, or "*" (wildcard) when explicitly requested.
+_cors_raw = (getattr(settings, "CORS_ORIGINS", "") or "").strip()
+_cors_param = "*" if _cors_raw == "*" else settings.cors_origins_list
+CORS(app, origins=_cors_param)
 
 # Create SocketIO instance
 socketio = SocketIO(
     app,
-    cors_allowed_origins=settings.cors_origins_list,
+    cors_allowed_origins="*" if _cors_raw == "*" else settings.cors_origins_list,
     async_mode="eventlet",
     ping_interval=settings.WEBSOCKET_PING_INTERVAL,
     ping_timeout=settings.WEBSOCKET_PING_TIMEOUT,

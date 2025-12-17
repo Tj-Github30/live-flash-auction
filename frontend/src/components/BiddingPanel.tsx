@@ -4,6 +4,7 @@ import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { ScrollArea } from './ui/scroll-area';
 import { api } from '../utils/api';
+import { formatCurrency, formatTimeRemaining } from '../utils/format';
 
 interface BiddingPanelProps {
   title: string;
@@ -32,6 +33,7 @@ export function BiddingPanel({
 }: BiddingPanelProps) {
   const [customBid, setCustomBid] = useState('');
   const [isPlacingBid, setIsPlacingBid] = useState(false);
+  const [bidStatus, setBidStatus] = useState<'idle' | 'winning' | 'outbid'>('idle');
   const nextMinBid = currentBid + bidIncrement;
   
   // Format recent bids
@@ -43,7 +45,9 @@ export function BiddingPanel({
     isYou: false // TODO: Check if bid is from current user
   }));
   
-  const isWinning = formattedBids[0]?.isYou || false;
+  const isWinning = bidStatus === 'winning';
+  const isOutbid = bidStatus === 'outbid';
+  const showNeutral = bidStatus === 'idle' && formattedBids.length === 0;
 
   const handleQuickBid = async (amount: number) => {
     await placeBid(amount);
@@ -64,13 +68,17 @@ export function BiddingPanel({
     try {
       const response = await api.post('/api/bids', {
         auction_id: auctionId,
-        bid_amount: amount
+        amount
       });
       
       if (response.ok) {
-        console.log('Bid placed successfully');
+        const data = await response.json().catch(() => null);
+        if (data?.status === 'success') setBidStatus('winning');
+        else if (data?.status === 'outbid') setBidStatus('outbid');
+        else setBidStatus('winning');
       } else {
         const error = await response.json();
+        if (error?.error?.toLowerCase?.().includes('outbid')) setBidStatus('outbid');
         alert(error.error || 'Failed to place bid');
       }
     } catch (error) {
@@ -88,17 +96,22 @@ export function BiddingPanel({
         <h4 className="mb-1 line-clamp-2">{title}</h4>
         
         {/* Status Badge */}
-        {isWinning ? (
+        {showNeutral ? (
+          <div className="inline-flex items-center gap-1.5 bg-slate-50 text-slate-700 px-2.5 py-1 rounded-full mt-2">
+            <TrendingUp className="w-3.5 h-3.5" />
+            <span className="text-xs">Ready to bid</span>
+          </div>
+        ) : isWinning ? (
           <div className="inline-flex items-center gap-1.5 bg-green-50 text-green-700 px-2.5 py-1 rounded-full mt-2">
             <Award className="w-3.5 h-3.5" />
             <span className="text-xs">You're winning!</span>
           </div>
-        ) : (
+        ) : isOutbid ? (
           <div className="inline-flex items-center gap-1.5 bg-orange-50 text-orange-700 px-2.5 py-1 rounded-full mt-2">
             <TrendingUp className="w-3.5 h-3.5" />
             <span className="text-xs">Outbid</span>
           </div>
-        )}
+        ) : null}
       </div>
 
       {/* Current Bid */}
@@ -110,7 +123,7 @@ export function BiddingPanel({
         
         <div className="flex items-center gap-2 text-xs text-muted-foreground">
           <Clock className="w-3.5 h-3.5" />
-          <span>{timeRemaining} remaining</span>
+          <span>{formatTimeRemaining(timeRemaining)} remaining</span>
         </div>
       </div>
 
@@ -128,7 +141,7 @@ export function BiddingPanel({
             disabled={isPlacingBid}
             className="h-10"
           >
-            +${(bidIncrement / 1000)}k
+            +${formatCurrency(bidIncrement)}
           </Button>
           <Button
             variant="outline"
@@ -136,7 +149,7 @@ export function BiddingPanel({
             disabled={isPlacingBid}
             className="h-10"
           >
-            +${(bidIncrement * 2 / 1000)}k
+            +${formatCurrency(bidIncrement * 2)}
           </Button>
         </div>
 
