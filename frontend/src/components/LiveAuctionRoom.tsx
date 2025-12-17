@@ -210,7 +210,6 @@ export function LiveAuctionRoom({ auction, onBack }: LiveAuctionRoomProps) {
           description={auction.description}
           category={auction.category}
           condition={auction.condition} 
-          year={auction.year?.toString() || "N/A"}
           seller={auction.seller} 
           auctionId={auction.auctionId}
           totalBids={auction.totalBids}
