@@ -8,6 +8,7 @@ import { Button } from './ui/button';
 import { useAuth } from '../auth/AuthProvider';
 import { createSocketConnection } from '../utils/websocket';
 import { Socket } from 'socket.io-client';
+import { formatTimeRemaining } from '../utils/format';
 
 export interface AuctionData {
   id: string;
@@ -62,6 +63,7 @@ export function LiveAuctionRoom({ auction, onBack }: LiveAuctionRoomProps) {
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [recentBids, setRecentBids] = useState<Array<{ username: string; amount: number; timestamp: string }>>([]);
   const [isConnected, setIsConnected] = useState(false);
+  const [connectionError, setConnectionError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!tokens?.idToken) {
@@ -77,12 +79,19 @@ export function LiveAuctionRoom({ auction, onBack }: LiveAuctionRoomProps) {
     socket.on('connect', () => {
       console.log('WebSocket connected');
       setIsConnected(true);
+      setConnectionError(null);
       
       // Join auction room
       socket.emit('join_auction', {
         auction_id: auction.auctionId,
         token: tokens.idToken
       });
+    });
+
+    socket.on('connect_error', (err: any) => {
+      console.error('WebSocket connect_error:', err);
+      setIsConnected(false);
+      setConnectionError(err?.message || 'Failed to connect to live updates');
     });
 
     socket.on('connected', (data: { message: string; user_id: string; username: string }) => {
@@ -157,6 +166,7 @@ export function LiveAuctionRoom({ auction, onBack }: LiveAuctionRoomProps) {
     // Error handling
     socket.on('error', (error: { message: string }) => {
       console.error('WebSocket error:', error);
+      setConnectionError(error?.message || 'WebSocket error');
     });
 
     socket.on('disconnect', () => {
@@ -202,7 +212,7 @@ export function LiveAuctionRoom({ auction, onBack }: LiveAuctionRoomProps) {
         {/* Connection Status */}
         {!isConnected && (
           <div className="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg text-sm text-yellow-800">
-            Connecting to auction...
+            {connectionError ? `Live updates unavailable: ${connectionError}` : 'Connecting to auction...'}
           </div>
         )}
 
@@ -220,7 +230,7 @@ export function LiveAuctionRoom({ auction, onBack }: LiveAuctionRoomProps) {
           <div className="col-span-6">
             <VideoStream
               viewers={viewers}
-              timeRemaining={timeRemaining}
+              timeRemaining={formatTimeRemaining(timeRemaining)}
             />
           </div>
 
@@ -229,7 +239,7 @@ export function LiveAuctionRoom({ auction, onBack }: LiveAuctionRoomProps) {
             <BiddingPanel
               title={auction.title}
               currentBid={currentBid}
-              timeRemaining={timeRemaining}
+              timeRemaining={formatTimeRemaining(timeRemaining)}
               bidIncrement={auction.bidIncrement}
               auctionId={auction.auctionId}
               recentBids={recentBids}
