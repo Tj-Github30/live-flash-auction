@@ -35,7 +35,7 @@ export interface AuctionData {
   timeRemaining: number;
 }
 
-export interface LiveAuctionRoomProps {
+interface LiveAuctionRoomProps {
   auction: AuctionData;
   onBack: () => void;
 }
@@ -54,6 +54,7 @@ export function LiveAuctionRoom({ auction, onBack }: LiveAuctionRoomProps) {
   const [status, setStatus] = useState(auction.status || 'live');
 
   const currentUserId = user?.sub || null;
+  
   const isHost = useMemo(() => {
     if (!currentUserId || !auction.hostUserId) return false;
     return String(currentUserId) === String(auction.hostUserId);
@@ -63,13 +64,29 @@ export function LiveAuctionRoom({ auction, onBack }: LiveAuctionRoomProps) {
     return status === 'closed' || (timeRemainingSeconds !== null && timeRemainingSeconds !== undefined && timeRemainingSeconds <= 0);
   }, [status, timeRemainingSeconds]);
 
+  // UNIFIED HELPER: Ensures Host is never a "Bidder"
+  const getDisplayName = (msgUserId: any) => {
+    if (!msgUserId) return "Guest";
+    const senderId = String(msgUserId);
+    const hostId = String(auction.hostUserId || "");
+    const meId = String(currentUserId || "");
+
+    if (senderId === meId) return "You";
+    if (senderId === hostId) return "Host";
+    
+    return bidderAliasForAuction({ 
+      auctionId: auction.auctionId, 
+      userId: senderId 
+    });
+  };
+
   const galleryImages = useMemo(() => {
     const all = Array.from(new Set([auction.image, ...(auction.galleryImages || [])])).filter(Boolean);
     if (all.length === 0) return [];
     return all.map(img => ({ original: img, thumbnail: img }));
   }, [auction.image, auction.galleryImages]);
 
-  // 1. Fetch Initial State (The 8 existing bids)
+  // 1. Initial State Fetch
   useEffect(() => {
     let active = true;
     const fetchInitialState = async () => {
@@ -81,16 +98,23 @@ export function LiveAuctionRoom({ auction, onBack }: LiveAuctionRoomProps) {
 
         if (Array.isArray(data?.recent_bids)) {
           setRecentBids(data.recent_bids.map((bid: any) => ({
-            username: bid.user_id === currentUserId ? "You" : bidderAliasForAuction({ auctionId: auction.auctionId, userId: bid.user_id }),
+            username: getDisplayName(bid.user_id),
             amount: bid.amount,
             timestamp: bid.timestamp || "Just now",
+          })));
+        }
+
+        if (Array.isArray(data?.chat_messages)) {
+          setChatMessages(data.chat_messages.map((msg: any) => ({
+            ...msg,
+            username: getDisplayName(msg.user_id)
           })));
         }
       } catch (err) { console.error("Error fetching state:", err); }
     };
     fetchInitialState();
     return () => { active = false; };
-  }, [auction.auctionId, currentUserId]);
+  }, [auction.auctionId, currentUserId, auction.hostUserId]);
 
   // 2. WebSocket Connection
   useEffect(() => {
@@ -105,9 +129,12 @@ export function LiveAuctionRoom({ auction, onBack }: LiveAuctionRoomProps) {
     socket.on('bid_update', (data: any) => {
       setCurrentBid(data.high_bid);
       setHighBidderId(data.high_bidder_id);
+      setViewers(data.participant_count || viewers);
+      if (data.status) setStatus(data.status);
+      
       if (data.top_bids) {
         setRecentBids(data.top_bids.map((bid: any) => ({
-          username: bid.user_id === currentUserId ? "You" : bidderAliasForAuction({ auctionId: auction.auctionId, userId: bid.user_id }),
+          username: getDisplayName(bid.user_id),
           amount: bid.amount,
           timestamp: bid.timestamp || "Just now",
         })));
@@ -115,18 +142,27 @@ export function LiveAuctionRoom({ auction, onBack }: LiveAuctionRoomProps) {
     });
 
     socket.on('chat_message', (msg: any) => {
-      setChatMessages(prev => [...prev, msg]);
+      setChatMessages(prev => [...prev, {
+        ...msg,
+        username: getDisplayName(msg.user_id)
+      }]);
     });
 
     socket.connect();
     return () => { socket.disconnect(); };
-  }, [tokens?.idToken, auction.auctionId, currentUserId]);
+  }, [tokens?.idToken, auction.auctionId, currentUserId, auction.hostUserId]);
 
   // Timer logic
   useEffect(() => {
     if (isEnded) return;
     const id = window.setInterval(() => {
-      setTimeRemainingSeconds((prev) => (prev && prev > 0 ? prev - 1 : 0));
+      setTimeRemainingSeconds((prev) => {
+        if (prev === null || prev === undefined || prev <= 0) {
+            if (prev === 0) setStatus('closed');
+            return 0;
+        }
+        return prev - 1;
+      });
     }, 1000);
     return () => window.clearInterval(id);
   }, [isEnded]);
@@ -142,7 +178,10 @@ export function LiveAuctionRoom({ auction, onBack }: LiveAuctionRoomProps) {
     setIsClosing(true);
     try {
       const response = await api.post(`/api/auctions/${auction.auctionId}/close`);
-      if (response.ok) { setStatus('closed'); setTimeRemainingSeconds(0); }
+      if (response.ok) { 
+        setStatus('closed'); 
+        setTimeRemainingSeconds(0); 
+      }
     } catch (err) { console.error(err); } finally { setIsClosing(false); }
   };
 
@@ -156,10 +195,16 @@ export function LiveAuctionRoom({ auction, onBack }: LiveAuctionRoomProps) {
         <div className="grid grid-cols-12 gap-6 mb-12">
           {/* Chat Column */}
           <div className="col-span-3 h-[700px]">
-            <ChatPanel messages={chatMessages} onSendMessage={handleSendChat} sellerName={auction.seller} isEnded={isEnded} />
+            <ChatPanel 
+              messages={chatMessages} 
+              onSendMessage={handleSendChat} 
+              sellerName={auction.seller} 
+              isEnded={isEnded}
+              isHostView={isHost}
+            />
           </div>
 
-          {/* Gallery Column */}
+          {/* Gallery Column with Blur and Overlay */}
           <div className="col-span-6 bg-white p-4 rounded-xl shadow-sm border border-gray-100 h-[700px] flex flex-col relative overflow-hidden">
              <div className="relative flex-grow h-full bg-gray-50 rounded-lg flex items-center justify-center overflow-hidden">
               {galleryImages.length > 0 ? (
@@ -170,6 +215,39 @@ export function LiveAuctionRoom({ auction, onBack }: LiveAuctionRoomProps) {
                   <span className="uppercase tracking-widest text-xs">No images</span>
                 </div>
               )}
+
+              {/* ENDED BACKDROP BLUR AND LOCK ICON */}
+              {isEnded && (
+                <div className="absolute inset-0 z-20 bg-black/60 flex flex-col items-center justify-center backdrop-blur-[2px] transition-opacity duration-500">
+                   <div className="bg-white/10 backdrop-blur-md border border-white/20 p-8 rounded-3xl flex flex-col items-center">
+                       <Lock className="w-12 h-12 text-white mb-4 opacity-90" />
+                       <h2 className="text-white text-6xl font-black tracking-tighter uppercase italic drop-shadow-2xl">
+                         Ended
+                       </h2>
+                       <p className="text-white/70 mt-2 font-medium tracking-widest uppercase text-xs">Bidding is now closed</p>
+                   </div>
+                </div>
+              )}
+
+              {/* LIVE / ENDED BADGE */}
+              <div className="absolute top-4 left-4 z-30 bg-black/60 px-3 py-1 rounded-full text-white text-sm flex items-center gap-2">
+                {isEnded ? (
+                  <>
+                    <span className="w-2 h-2 bg-red-500 rounded-full" />
+                    ENDED
+                  </>
+                ) : (
+                  <>
+                    <span className="w-2 h-2 bg-red-500 rounded-full animate-pulse" />
+                    LIVE | {viewers} Viewers
+                  </>
+                )}
+              </div>
+
+              {/* TOP RIGHT TIMER */}
+              <div className="absolute top-4 right-4 z-30 bg-black/60 px-4 py-1.5 rounded-full text-white text-sm font-mono shadow-xl border border-white/5">
+                {isEnded ? "00:00:00" : formatTimeRemaining(timeRemainingSeconds ?? auction.timeRemaining)}
+              </div>
             </div>
           </div>
 
@@ -187,7 +265,6 @@ export function LiveAuctionRoom({ auction, onBack }: LiveAuctionRoomProps) {
               </div>
             )}
 
-            {/* Container for Bidding Panel to prevent overlap */}
             <div className="flex-1 overflow-y-auto rounded-xl border border-border bg-white shadow-sm">
               <BiddingPanel
                 title={auction.title}
@@ -205,7 +282,6 @@ export function LiveAuctionRoom({ auction, onBack }: LiveAuctionRoomProps) {
           </div>
         </div>
 
-        {/* Item Details - Year conversion fixed with guard */}
         <ItemDetailsSection
           description={auction.description}
           category={auction.category}
