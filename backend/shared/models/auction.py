@@ -26,6 +26,9 @@ class Auction(Base):
     ivs_channel_arn = Column(String(255))
     ivs_stream_key = Column(Text)
     ivs_playback_url = Column(Text)
+    
+    # --- ADDED: Image URL Support ---
+    image_url = Column(String(2048), nullable=True)
 
     # Relationships
     host = relationship("User", foreign_keys=[host_user_id], backref="hosted_auctions")
@@ -47,7 +50,9 @@ class Auction(Base):
             "winning_bid": float(self.winning_bid) if self.winning_bid else None,
             "ended_at": self.ended_at.isoformat() if self.ended_at else None,
             "ivs_channel_arn": self.ivs_channel_arn,
-            "ivs_playback_url": self.ivs_playback_url
+            "ivs_playback_url": self.ivs_playback_url,
+            # --- ADDED: Return image to frontend ---
+            "image_url": self.image_url
         }
 
         # Only include stream key if explicitly requested (security)
