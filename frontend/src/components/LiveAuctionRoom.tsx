@@ -198,7 +198,21 @@ export function LiveAuctionRoom({ auction, onBack }: LiveAuctionRoomProps) {
                 showFullscreenButton={false}
                 additionalClass="live-auction-gallery h-full w-full"
               />
-               <div className="absolute top-4 left-16 z-10 bg-black/60 px-3 py-1 rounded-full text-white text-sm flex items-center gap-2">
+
+               {/* ADDED: ENDED BACKDROP BLUR AND LOCK ICON */}
+               {isEnded && (
+                 <div className="absolute inset-0 z-20 bg-black/60 flex flex-col items-center justify-center backdrop-blur-[2px] transition-opacity duration-500">
+                    <div className="bg-white/10 backdrop-blur-md border border-white/20 p-8 rounded-3xl flex flex-col items-center">
+                        <Lock className="w-12 h-12 text-white mb-4 opacity-90" />
+                        <h2 className="text-white text-6xl font-black tracking-tighter uppercase italic drop-shadow-2xl">
+                          Ended
+                        </h2>
+                        <p className="text-white/70 mt-2 font-medium tracking-widest uppercase text-xs">Bidding is now closed</p>
+                    </div>
+                 </div>
+               )}
+
+               <div className="absolute top-4 left-16 z-30 bg-black/60 px-3 py-1 rounded-full text-white text-sm flex items-center gap-2">
                  {isEnded ? (
                    <>
                      <span className="w-2 h-2 bg-red-500 rounded-full" />

@@ -1,6 +1,5 @@
 import { Loader2, Upload, X } from 'lucide-react';
 import { useRef, useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
@@ -10,233 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
 export function NewListing() {
-  const navigate = useNavigate();
-
   const [images, setImages] = useState<string[]>([]);
-  const [title, setTitle] = useState("");
-  const [sellerName, setSellerName] = useState(""); 
-  // 1. New State for Condition
-  const [condition, setCondition] = useState("");
-  const [description, setDescription] = useState("");
-  const [category, setCategory] = useState("");
-  const [startingBid, setStartingBid] = useState("");
-  const [duration, setDuration] = useState("");
-  const [customDurationValue, setCustomDurationValue] = useState<string>("");
-  const [customDurationUnit, setCustomDurationUnit] = useState<"minutes" | "hours">("minutes");
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState("");
-  const [success, setSuccess] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-
-  useEffect(() => {
-    console.log("--- STORAGE DEBUG ---");
-    console.log("LocalStorage Keys:", Object.keys(localStorage));
-    console.log("SessionStorage Keys:", Object.keys(sessionStorage));
-  }, []);
-
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (!files) return;
-
-    Array.from(files).forEach(file => {
-      if (images.length >= 10) return;
-      
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setImages(prev => [...prev, reader.result as string]);
-      };
-      reader.readAsDataURL(file);
-    });
-
-    if (fileInputRef.current) {
-      fileInputRef.current.value = "";
-    }
-  };
-
-  const triggerFileUpload = () => {
-    if (fileInputRef.current) {
-      fileInputRef.current.click();
-    } else {
-      console.error("File input ref not found!");
-    }
-  };
-
-  const convertDurationToSeconds = (durationStr: string): number => {
-    const durationMap: { [key: string]: number } = {
-      "1h": 3600,
-      "3h": 10800,
-      "6h": 21600,
-      "12h": 43200,
-      "24h": 86400
-    };
-    return durationMap[durationStr] || 3600;
-  };
-
-  const getDurationSeconds = (): number | null => {
-    if (!duration) return null;
-
-    if (duration !== "custom") {
-      return convertDurationToSeconds(duration);
-    }
-
-    const n = Number(customDurationValue);
-    if (!Number.isFinite(n) || n <= 0) return null;
-
-    const seconds = customDurationUnit === "hours" ? Math.round(n * 3600) : Math.round(n * 60);
-    return seconds > 0 ? seconds : null;
-  };
-
-  const getAuthToken = () => {
-    console.log("Starting Token Search...");
-    const isToken = (val: string | null) => val && val.startsWith("ey");
-
-    const directKeys = ["idToken", "accessToken", "token", "authToken"];
-    for (const key of directKeys) {
-      if (isToken(localStorage.getItem(key))) return localStorage.getItem(key);
-      if (isToken(sessionStorage.getItem(key))) return sessionStorage.getItem(key);
-    }
-
-    for (let i = 0; i < localStorage.length; i++) {
-      const key = localStorage.key(i);
-      if (!key) continue;
-      const val = localStorage.getItem(key);
-      
-      if ((key.includes("idToken") || key.includes("accessToken")) && isToken(val)) {
-        return val;
-      }
-
-      try {
-        if (val && val.includes("{")) {
-          const parsed = JSON.parse(val);
-          if (isToken(parsed.idToken)) return parsed.idToken;
-          if (isToken(parsed.accessToken)) return parsed.accessToken;
-          if (isToken(parsed.token)) return parsed.token;
-        }
-      } catch (e) {
-        // Ignore JSON parse errors
-      }
-    }
-
-    for (let i = 0; i < sessionStorage.length; i++) {
-      const key = sessionStorage.key(i);
-      if (!key) continue;
-      const val = sessionStorage.getItem(key);
-      if ((key.includes("idToken") || key.includes("accessToken")) && isToken(val)) {
-        return val;
-      }
-    }
-
-    console.warn("Token search finished: NO TOKEN FOUND.");
-    return null;
-  };
-
-  const handleSubmit = async () => {
-    setError("");
-    setSuccess(false);
-
-    // Validation
-    if (!title.trim()) {
-      setError("Please enter an item title");
-      return;
-    }
-    if (!sellerName.trim()) {
-      setError("Please enter a seller name");
-      return;
-    }
-    // 2. Validate Condition
-    if (!condition.trim()) {
-      setError("Please enter the item condition");
-      return;
-    }
-    if (!category) {
-      setError("Please select a category");
-      return;
-    }
-    if (!startingBid || parseFloat(startingBid) <= 0) {
-      setError("Please enter a valid starting bid");
-      return;
-    }
-    const durationSeconds = getDurationSeconds();
-    if (!durationSeconds) {
-      setError(duration === "custom"
-        ? "Please enter a valid custom duration"
-        : "Please select an auction duration");
-      return;
-    }
-
-    setIsLoading(true);
-
-    try {
-      const authToken = getAuthToken();
-      
-      if (!authToken) {
-        console.error("LocalStorage Keys Available:", Object.keys(localStorage));
-        throw new Error("Could not find login credentials. Please refresh the page and login again.");
-      }
-
-      // 3. Add Condition to payload
-      const payload = {
-        title: title.trim(),
-        seller_name: sellerName.trim(), 
-        description: description.trim() || undefined,
-        category: category,
-        condition: condition.trim(), // <--- Sending condition
-        starting_bid: parseFloat(startingBid),
-        duration: durationSeconds,
-        image_url: images.length > 0 ? images[0] : "",
-        images: images.length > 1 ? images.slice(1) : []
-      };
-
-      const response = await fetch(`${API_BASE_URL}/api/auctions`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${authToken}`
-        },
-        body: JSON.stringify(payload)
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || "Failed to create auction");
-      }
-
-      console.log("Auction created:", data);
-      setSuccess(true);
-      setError("");
-
-      try {
-        window.dispatchEvent(new CustomEvent("auction:created", { detail: data }));
-      } catch {
-        // ignore
-      }
-      
-      // Reset form
-      setTitle("");
-      setSellerName(""); 
-      setCondition(""); // Reset condition
-      setDescription("");
-      setCategory("");
-      setStartingBid("");
-      setDuration("");
-      setCustomDurationValue("");
-      setCustomDurationUnit("minutes");
-      setImages([]);
-
-      setTimeout(() => {
-        if (data.auction_id) {
-          navigate(`/auction/${data.auction_id}`, { replace: true });
-        }
-      }, 2000);
-
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to create auction");
-      console.error("Auction creation error:", err);
-    } finally {
-      setIsLoading(false);
-    }
-  };
 
   const handleRemoveImage = (index: number) => {
     setImages(images.filter((_, i) => i !== index));
@@ -254,15 +27,6 @@ export function NewListing() {
             <p className="text-xs text-muted-foreground mb-3">
               Upload high-quality images of your item (up to 10 images)
             </p>
-
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/*"
-              multiple
-              onChange={handleImageUpload}
-              style={{ display: 'none' }} 
-            />
             
             <div className="grid grid-cols-5 gap-4">
               {images.map((image, index) => (
@@ -313,14 +77,11 @@ export function NewListing() {
 
           {/* Seller Name */}
           <div>
-            <Label htmlFor="sellerName">Seller Name</Label>
-            <Input
-              id="sellerName"
-              type="text"
-              placeholder="e.g., John Doe"
-              className="mt-2"
-              value={sellerName}
-              onChange={(e) => setSellerName(e.target.value)}
+            <Label htmlFor="description">Description</Label>
+            <Textarea
+              id="description"
+              placeholder="Provide detailed information about the item's condition, provenance, and any relevant details..."
+              className="mt-2 min-h-32"
             />
           </div>
 
