@@ -1,6 +1,0 @@
-/* #92771 */
-@media (max-width: 500px) {
-    .inside-chatv2-open #usntA42Toggle {
-        display: none !important;
-    }
-}

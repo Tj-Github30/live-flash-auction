@@ -1,2 +1,0 @@
-import{h as r,a as _}from"../entry-client-component-C3WdCEsG.js";import"https://www.gucci.com/deps/_static/react@19.1.0/jsx-runtime";import"https://www.gucci.com/deps/_static/react@19.1.0";import"https://www.gucci.com/deps/_static/react-dom@19.1.0/client";const c="__RECO_PROPS__",e="__RECO_ENV_PUBLIC__",t="reco-root",o=r(c),s=r(e);_(t,{recoParams:o.recoParams,recoEnvPublic:s,featureFlags:o.featureFlags,microcopyBundle:o.microcopyBundle});
-//# sourceMappingURL=index-Dg_zkGE8.js.map
