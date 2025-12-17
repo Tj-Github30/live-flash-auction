@@ -1,7 +1,9 @@
-import { useState, useEffect } from 'react';
-import { Clock, Eye, MoreVertical } from 'lucide-react';
-import { Button } from './ui/button';
+import { useState, useEffect, useMemo } from 'react';
+import { Clock, Eye } from 'lucide-react';
 import { api, apiJson } from '../utils/api';
+import { useAuth } from '../auth/AuthProvider';
+import { formatTimeRemaining } from '../utils/format';
+import { useNavigate } from 'react-router-dom';
 
 interface Listing {
   auction_id: string;
@@ -12,38 +14,63 @@ interface Listing {
   end_time?: string;
   participant_count?: number;
   bid_count?: number;
+  host_user_id?: string;
+  time_remaining_seconds?: number;
 }
 
 export function ActiveListings() {
+  const { user } = useAuth();
+  const navigate = useNavigate();
+  const currentUserId = useMemo(() => user?.sub ? String(user.sub) : null, [user?.sub]);
   const [listings, setListings] = useState<Listing[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    fetchActiveListings();
-  }, []);
-
-  useEffect(() => {
     const handler = () => fetchActiveListings();
     window.addEventListener("auction:created", handler as EventListener);
-    const id = window.setInterval(fetchActiveListings, 10_000);
     return () => {
       window.removeEventListener("auction:created", handler as EventListener);
-      window.clearInterval(id);
     };
   }, []);
 
-  const fetchActiveListings = async () => {
+  // Fetch on focus/visibility (no interval)
+  useEffect(() => {
+    let lastFetch = 0;
+    const minIntervalMs = 2000;
+    const maybeFetch = () => {
+      const now = Date.now();
+      if (now - lastFetch < minIntervalMs) return;
+      lastFetch = now;
+      fetchActiveListings(false);
+    };
+    const handleVisibility = () => {
+      if (document.visibilityState === "visible") maybeFetch();
+    };
+    const handleFocus = () => maybeFetch();
+
+    if (document.visibilityState === "visible") maybeFetch();
+    window.addEventListener("visibilitychange", handleVisibility);
+    window.addEventListener("focus", handleFocus);
+    return () => {
+      window.removeEventListener("visibilitychange", handleVisibility);
+      window.removeEventListener("focus", handleFocus);
+    };
+  }, []);
+
+  const fetchActiveListings = async (showLoader = true) => {
     try {
-      setLoading(true);
+      if (showLoader) setLoading(true);
       setError(null);
       
       const response = await api.get('/api/auctions?status=live&limit=50&offset=0');
       const data = await apiJson<{ auctions: Listing[] }>(response);
-      
-      // Filter to only show auctions created by current user
-      // Note: Backend should ideally support filtering by host_user_id
-      setListings(data.auctions || []);
+
+      const filtered = (data.auctions || []).filter((a) => {
+        if (!currentUserId) return true;
+        return String(a.host_user_id || '') === currentUserId;
+      });
+      setListings(filtered);
     } catch (err) {
       console.error('Error fetching active listings:', err);
       setError(err instanceof Error ? err.message : 'Failed to load listings');
@@ -52,18 +79,17 @@ export function ActiveListings() {
     }
   };
 
-  const formatTimeRemaining = (endTime?: string): string => {
-    if (!endTime) return 'N/A';
-    
-    const end = new Date(endTime);
-    const now = new Date();
-    const diffMs = end.getTime() - now.getTime();
-    
-    if (diffMs <= 0) return 'Ended';
-    
-    const hours = Math.floor(diffMs / (1000 * 60 * 60));
-    const minutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
-    return hours > 0 ? `${hours}h ${minutes}m` : `${minutes}m`;
+  const timeLeftLabel = (item: Listing): string => {
+    if (typeof item.time_remaining_seconds === "number") {
+      return formatTimeRemaining(item.time_remaining_seconds);
+    }
+    if (item.end_time) {
+      const end = new Date(item.end_time).getTime();
+      const now = Date.now();
+      const secs = Math.max(0, Math.floor((end - now) / 1000));
+      return formatTimeRemaining(secs);
+    }
+    return 'N/A';
   };
   return (
     <div>
@@ -74,7 +100,6 @@ export function ActiveListings() {
           <div className="col-span-2 text-right">Current Bid</div>
           <div className="col-span-2 text-center">Time Left</div>
           <div className="col-span-2 text-center">Activity</div>
-          <div className="col-span-1"></div>
         </div>
 
         {/* Table Rows */}
@@ -94,7 +119,8 @@ export function ActiveListings() {
           listings.map((item) => (
             <div
               key={item.auction_id}
-              className="grid grid-cols-12 gap-4 px-6 py-4 border-b border-border last:border-b-0 hover:bg-secondary/20 transition-colors"
+              onClick={() => navigate(`/auction/${item.auction_id}`)}
+              className="grid grid-cols-12 gap-4 px-6 py-4 border-b border-border last:border-b-0 hover:bg-secondary/20 transition-colors cursor-pointer"
             >
               {/* Item Info */}
               <div className="col-span-5 flex items-center gap-4">
@@ -128,7 +154,7 @@ export function ActiveListings() {
               <div className="col-span-2 flex items-center justify-center">
                 <div className="flex items-center gap-1.5 text-foreground">
                   <Clock className="w-4 h-4" />
-                  <span>{formatTimeRemaining(item.end_time)}</span>
+                  <span>{timeLeftLabel(item)}</span>
                 </div>
               </div>
 
@@ -138,13 +164,6 @@ export function ActiveListings() {
                   <Eye className="w-4 h-4" />
                   <span>{item.participant_count || 0}</span>
                 </div>
-              </div>
-
-              {/* Actions */}
-              <div className="col-span-1 flex items-center justify-end">
-                <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-                  <MoreVertical className="w-4 h-4" />
-                </Button>
               </div>
             </div>
           ))

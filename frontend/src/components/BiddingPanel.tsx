@@ -119,17 +119,17 @@ export function BiddingPanel({
             <TrendingUp className="w-3.5 h-3.5" />
             <span className="text-sm font-bold text-red-700">Auction closed</span>
           </div>
-        ) : showNeutral ? (
+        ) : !isHost && showNeutral ? (
           <div className="inline-flex items-center gap-1.5 bg-slate-50 text-slate-700 px-2.5 py-1 rounded-full mt-2">
             <TrendingUp className="w-3.5 h-3.5" />
             <span className="text-xs">Ready to bid</span>
           </div>
-        ) : isWinning ? (
+        ) : !isHost && isWinning ? (
           <div className="inline-flex items-center gap-1.5 bg-green-50 text-green-700 px-2.5 py-1 rounded-full mt-2">
             <Award className="w-3.5 h-3.5" />
             <span className="text-xs">You're winning!</span>
           </div>
-        ) : isOutbid ? (
+        ) : !isHost && isOutbid ? (
           <div className="inline-flex items-center gap-1.5 bg-orange-50 text-orange-700 px-2.5 py-1 rounded-full mt-2">
             <TrendingUp className="w-3.5 h-3.5" />
             <span className="text-xs">Outbid</span>

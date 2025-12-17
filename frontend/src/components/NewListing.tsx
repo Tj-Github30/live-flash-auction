@@ -1,5 +1,8 @@
 import { Loader2, Upload, X } from 'lucide-react';
 import { useRef, useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../auth/AuthProvider';
+import { api, apiJson } from '../utils/api';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
@@ -9,10 +12,98 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
 export function NewListing() {
+  const navigate = useNavigate();
+  const { user } = useAuth();
+  const [title, setTitle] = useState('');
+  const [description, setDescription] = useState('');
+  const [category, setCategory] = useState('');
+  const [condition, setCondition] = useState('');
+  const [startingBid, setStartingBid] = useState('');
+  const [duration, setDuration] = useState('1h');
+  const [customDurationValue, setCustomDurationValue] = useState('');
+  const [customDurationUnit, setCustomDurationUnit] = useState<'minutes' | 'hours'>('hours');
+  const [isLoading, setIsLoading] = useState(false);
+  const [success, setSuccess] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [images, setImages] = useState<string[]>([]);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  const triggerFileUpload = () => {
+    fileInputRef.current?.click();
+  };
 
   const handleRemoveImage = (index: number) => {
     setImages(images.filter((_, i) => i !== index));
+  };
+
+  const fileToDataUrl = (file: File): Promise<string> =>
+    new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+
+  const computeDurationSeconds = () => {
+    switch (duration) {
+      case '1h': return 3600;
+      case '3h': return 3 * 3600;
+      case '6h': return 6 * 3600;
+      case '12h': return 12 * 3600;
+      case '24h': return 24 * 3600;
+      case 'custom': {
+        const val = parseInt(customDurationValue || '0', 10);
+        if (!val || val <= 0) return 0;
+        return customDurationUnit === 'minutes' ? val * 60 : val * 3600;
+      }
+      default: return 0;
+    }
+  };
+
+  const handleSubmit = async () => {
+    try {
+      setIsLoading(true);
+      setError(null);
+      setSuccess(false);
+
+      if (!title.trim()) throw new Error('Title is required');
+      if (!category) throw new Error('Category is required');
+      if (!startingBid) throw new Error('Starting bid is required');
+      const durationSeconds = computeDurationSeconds();
+      if (!durationSeconds) throw new Error('Duration must be greater than 0');
+
+      const payload: any = {
+        title: title.trim(),
+        description: description.trim() || undefined,
+        category,
+        starting_bid: parseFloat(startingBid),
+        duration: durationSeconds,
+        condition: condition.trim() || undefined,
+        image_url: images[0] || undefined,
+        images: images,
+      };
+
+      const sellerName = user?.email || user?.name || user?.username;
+      if (sellerName) {
+        payload.seller_name = sellerName;
+      }
+
+      const resp = await api.post('/api/auctions', payload);
+      const created = await apiJson<{ auction_id: string }>(resp);
+
+      window.dispatchEvent(new CustomEvent("auction:created"));
+      setSuccess(true);
+      // Navigate host directly to the auction room
+      if (created?.auction_id) {
+        navigate(`/auction/${created.auction_id}`, { replace: true });
+      } else {
+        navigate("/", { replace: true });
+      }
+    } catch (err: any) {
+      setError(err?.message || 'Failed to create listing');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -28,6 +119,24 @@ export function NewListing() {
               Upload high-quality images of your item (up to 10 images)
             </p>
             
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              multiple
+              className="hidden"
+              onChange={async (e) => {
+                const files = Array.from(e.target.files || []);
+                if (!files.length) return;
+                try {
+                  const dataUrls = await Promise.all(files.map(fileToDataUrl));
+                  setImages((prev) => [...prev, ...dataUrls].slice(0, 10));
+                } catch (err) {
+                  setError('Failed to read one or more files. Please try again.');
+                }
+              }}
+            />
+
             <div className="grid grid-cols-5 gap-4">
               {images.map((image, index) => (
                 <div key={index} className="relative aspect-square bg-secondary rounded-lg overflow-hidden group">
@@ -81,7 +190,9 @@ export function NewListing() {
             <Textarea
               id="description"
               placeholder="Provide detailed information about the item's condition, provenance, and any relevant details..."
-              className="mt-2 min-h-32"
+            className="mt-2 min-h-32"
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
             />
           </div>
 
@@ -101,6 +212,7 @@ export function NewListing() {
                 <SelectItem value="fashion">Fashion</SelectItem>
                 <SelectItem value="books">Books & Manuscripts</SelectItem>
                 <SelectItem value="electronics">Electronics</SelectItem>
+              <SelectItem value="home-kitchen">Home &amp; Kitchen</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -115,18 +227,6 @@ export function NewListing() {
               className="mt-2"
               value={condition}
               onChange={(e) => setCondition(e.target.value)}
-            />
-          </div>
-
-          {/* Description */}
-          <div>
-            <Label htmlFor="description">Description</Label>
-            <Textarea
-              id="description"
-              placeholder="Provide detailed information about the item's condition, provenance, and any relevant details..."
-              className="mt-2 min-h-32"
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
             />
           </div>
 

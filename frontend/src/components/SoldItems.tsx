@@ -1,6 +1,7 @@
-import { useState, useEffect } from 'react';
-import { CheckCircle2, User } from 'lucide-react';
+import { useState, useEffect, useMemo } from 'react';
+import { CheckCircle2 } from 'lucide-react';
 import { api, apiJson } from '../utils/api';
+import { useAuth } from '../auth/AuthProvider';
 
 interface SoldItem {
   auction_id: string;
@@ -13,9 +14,12 @@ interface SoldItem {
   high_bidder_username?: string;
   bid_count?: number;
   closed_at?: string;
+  host_user_id?: string;
 }
 
 export function SoldItems() {
+  const { user } = useAuth();
+  const currentUserId = useMemo(() => user?.sub ? String(user.sub) : null, [user?.sub]);
   const [soldItems, setSoldItems] = useState<SoldItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -47,7 +51,11 @@ export function SoldItems() {
       const response = await api.get('/api/auctions?status=closed&limit=50&offset=0');
       const data = await apiJson<{ auctions: SoldItem[] }>(response);
       
-      setSoldItems(data.auctions || []);
+      const filtered = (data.auctions || []).filter((a) => {
+        if (!currentUserId) return true;
+        return String(a.host_user_id || '') === currentUserId;
+      });
+      setSoldItems(filtered);
     } catch (err) {
       console.error('Error fetching sold items:', err);
       setError(err instanceof Error ? err.message : 'Failed to load sold items');
@@ -56,29 +64,14 @@ export function SoldItems() {
     }
   };
 
-  const formatSoldDate = (closedAt?: string): string => {
-    if (!closedAt) return 'N/A';
-    
-    const closed = new Date(closedAt);
-    const now = new Date();
-    const diffMs = now.getTime() - closed.getTime();
-    const days = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-    
-    if (days === 0) return 'Today';
-    if (days === 1) return '1 day ago';
-    if (days < 7) return `${days} days ago`;
-    if (days < 30) return `${Math.floor(days / 7)} weeks ago`;
-    return `${Math.floor(days / 30)} months ago`;
-  };
   return (
     <div>
       <div className="bg-white rounded-lg border border-border overflow-hidden">
         {/* Table Header */}
         <div className="grid grid-cols-12 gap-4 px-6 py-4 bg-secondary/30 border-b border-border">
-          <div className="col-span-5">Item</div>
-          <div className="col-span-2 text-right">Final Price</div>
-          <div className="col-span-2 text-center">Sold Date</div>
-          <div className="col-span-3">Buyer</div>
+          <div className="col-span-6">Item</div>
+          <div className="col-span-3 text-right">Final Price</div>
+          <div className="col-span-3 text-center">Bids</div>
         </div>
 
         {/* Table Rows */}
@@ -101,7 +94,7 @@ export function SoldItems() {
               className="grid grid-cols-12 gap-4 px-6 py-4 border-b border-border last:border-b-0 hover:bg-secondary/20 transition-colors"
             >
               {/* Item Info */}
-              <div className="col-span-5 flex items-center gap-4">
+              <div className="col-span-6 flex items-center gap-4">
                 <div className="w-20 h-20 rounded-lg overflow-hidden bg-secondary flex-shrink-0">
                   <img
                     src={item.image_url || 'https://via.placeholder.com/80x80?text=No+Image'}
@@ -122,29 +115,15 @@ export function SoldItems() {
               </div>
 
               {/* Final Price */}
-              <div className="col-span-2 flex items-center justify-end">
+              <div className="col-span-3 flex items-center justify-end">
                 <div className="text-right">
                   <p className="text-accent">${(item.current_high_bid || item.starting_bid).toLocaleString()}</p>
                 </div>
               </div>
 
-              {/* Sold Date */}
-              <div className="col-span-2 flex items-center justify-center">
-                <p className="text-muted-foreground">{formatSoldDate(item.closed_at || item.end_time)}</p>
-              </div>
-
-              {/* Buyer */}
-              <div className="col-span-3 flex items-center gap-2">
-                <div className="w-8 h-8 rounded-full bg-secondary flex items-center justify-center">
-                  <User className="w-4 h-4 text-muted-foreground" />
-                </div>
-                <span className="text-foreground">
-                  {item.high_bidder_username
-                    ? item.high_bidder_username.length > 18
-                      ? `${item.high_bidder_username.slice(0, 16)}…`
-                      : item.high_bidder_username
-                    : 'N/A'}
-                </span>
+              {/* Bids */}
+              <div className="col-span-3 flex items-center justify-center">
+                <span className="text-muted-foreground">{item.bid_count || 0} bids</span>
               </div>
             </div>
           ))

@@ -2835,10 +2835,22 @@ html {
   height: 100%;
 }
 
+.live-auction-gallery .image-gallery-slide {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #fff;
+  padding: 12px;
+  box-sizing: border-box;
+}
+
 .live-auction-gallery .image-gallery-slide img {
-  height: 100%;
-  width: 100%;
-  object-fit: contain;
+  width: auto !important;
+  height: auto !important;
+  max-height: 100% !important;
+  max-width: 100% !important;
+  object-fit: contain !important;
+  margin: auto;
   background: #fff;
 }
 

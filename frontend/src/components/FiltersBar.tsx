@@ -35,6 +35,7 @@ export function FiltersBar({ filters, onFilterChange, onClear }: FiltersBarProps
               <SelectItem value="collectibles">Collectibles</SelectItem>
               <SelectItem value="furniture">Furniture</SelectItem>
               <SelectItem value="electronics">Electronics</SelectItem>
+              <SelectItem value="home-kitchen">Home &amp; Kitchen</SelectItem>
             </SelectContent>
           </Select>
 

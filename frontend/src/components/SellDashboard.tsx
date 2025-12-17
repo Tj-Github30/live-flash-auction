@@ -3,7 +3,20 @@ import { ActiveListings } from './ActiveListings';
 import { SoldItems } from './SoldItems';
 import { NewListing } from './NewListing';
 
+import { useAuth } from "../auth/AuthProvider";
+
 export function SellDashboard() {
+  const { user } = useAuth();
+  // If not authenticated or missing user id, hide seller dashboard content.
+  if (!user?.sub) {
+    return (
+      <div className="pt-[137px] min-h-screen flex items-center justify-center">
+        <div className="text-center text-muted-foreground">
+          Seller dashboard is available only for signed-in hosts.
+        </div>
+      </div>
+    );
+  }
   const [activeView, setActiveView] = useState<'active' | 'sold' | 'new'>('active');
 
   return (

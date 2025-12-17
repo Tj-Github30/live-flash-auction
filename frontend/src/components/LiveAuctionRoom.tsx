@@ -306,7 +306,7 @@ export function LiveAuctionRoom({ auction, onBack }: LiveAuctionRoomProps) {
           </div>
 
           <div className="col-span-6 bg-white p-4 rounded-xl shadow-sm border border-gray-100 h-[700px] flex flex-col relative overflow-hidden">
-            <div className="relative flex-grow h-full bg-gray-50 rounded-lg flex items-center justify-center">
+            <div className="relative flex-grow h-full bg-gray-50 rounded-lg flex items-center justify-center overflow-hidden">
               {galleryImages.length > 0 ? (
                 <ImageGallery
                   items={galleryImages}
