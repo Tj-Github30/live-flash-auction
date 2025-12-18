@@ -120,6 +120,8 @@ export function BiddingPanel({
       if (response.ok) {
         // Real-time winner/outbid status is driven by websocket updates (highBidderUsername).
         await response.json().catch(() => null);
+        // Dispatch event to refresh MyBids page
+        window.dispatchEvent(new CustomEvent('bid:placed', { detail: { auctionId, amount } }));
       } else {
         const error = await response.json();
         alert(normalizeBidError(error?.error));

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthProvider';
 import { api, apiJson } from '../utils/api';
@@ -10,7 +10,7 @@ interface Bid {
   auction_id: string;
   title?: string;
   image_url?: string;
-  gallery_images?: string[];
+  gallery_images?: string[] | string;
   amount: number;
   created_at: string;
   status?: string;
@@ -45,7 +45,7 @@ export function MyBids() {
     return () => window.clearInterval(id);
   }, [bids.length]);
 
-  const loadBids = async () => {
+  const loadBids = useCallback(async () => {
     if (!userId) {
       setBids([]);
       setLoading(false);
@@ -56,13 +56,20 @@ export function MyBids() {
       setError(null);
       const resp = await api.get('/api/bids');
       if (!resp.ok) {
+        const errorText = await resp.text();
+        console.error('Failed to load bids:', resp.status, errorText);
         throw new Error(`Failed to load bids: ${resp.status}`);
       }
       const data = await apiJson<{ bids: Bid[] }>(resp);
       const list = data.bids || [];
+      
       // Deduplicate by auction_id, keep the newest bid per auction
       const deduped: Record<string, Bid> = {};
       list.forEach((bid) => {
+        if (!bid.auction_id) {
+          console.warn('Bid missing auction_id:', bid);
+          return;
+        }
         const existing = deduped[bid.auction_id];
         if (!existing) {
           deduped[bid.auction_id] = bid;
@@ -74,7 +81,8 @@ export function MyBids() {
           deduped[bid.auction_id] = bid;
         }
       });
-      setBids(Object.values(deduped));
+      const dedupedBids = Object.values(deduped);
+      setBids(dedupedBids);
     } catch (err: any) {
       console.error('Error loading bids:', err);
       setError(err?.message || 'Failed to load your bids');
@@ -82,14 +90,15 @@ export function MyBids() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [userId]);
 
   useEffect(() => {
     loadBids();
-  }, [userId]);
+  }, [loadBids]);
 
   // Refresh on visibility/focus to keep viewers/timers closer to real-time
   useEffect(() => {
+    if (!userId) return;
     const handleVisibility = () => {
       if (document.visibilityState === "visible") loadBids();
     };
@@ -100,23 +109,60 @@ export function MyBids() {
       window.removeEventListener("visibilitychange", handleVisibility);
       window.removeEventListener("focus", handleFocus);
     };
-  }, [userId]);
+  }, [userId, loadBids]);
+
+  // Listen for bid events to refresh the list immediately
+  useEffect(() => {
+    if (!userId) return;
+    
+    const handleBidPlaced = () => {
+      // Refresh bids when a bid is placed - add small delay to ensure backend has processed
+      setTimeout(() => {
+        loadBids();
+      }, 1000);
+    };
+    
+    // Listen for custom bid:placed event
+    window.addEventListener('bid:placed', handleBidPlaced);
+    
+    return () => {
+      window.removeEventListener('bid:placed', handleBidPlaced);
+    };
+  }, [userId, loadBids]);
 
   const formatBidForCard = (bid: Bid) => {
     const isClosed = bid.status === "closed" || (bid.time_remaining_seconds !== null && bid.time_remaining_seconds !== undefined && bid.time_remaining_seconds <= 0);
     const timeRemaining = isClosed
       ? "Ended"
       : formatTimeRemaining(bid.time_remaining_seconds ?? null);
+    
+    // Handle gallery_images - could be array or string
+    let galleryImages: string[] = [];
+    const galleryImagesValue = bid.gallery_images;
+    if (Array.isArray(galleryImagesValue)) {
+      galleryImages = galleryImagesValue;
+    } else if (typeof galleryImagesValue === 'string' && galleryImagesValue) {
+      try {
+        const parsed = JSON.parse(galleryImagesValue);
+        galleryImages = Array.isArray(parsed) ? parsed : [];
+      } catch {
+        // If parsing fails, try splitting by comma
+        galleryImages = galleryImagesValue.split(',').map((s: string) => s.trim()).filter(Boolean);
+      }
+    }
+    
     const imageSrc =
-      bid.image_url && bid.image_url.trim() !== ""
+      (bid.image_url && bid.image_url.trim() !== "")
         ? bid.image_url
-        : (bid.gallery_images && bid.gallery_images.length > 0 && bid.gallery_images[0]) || 'https://via.placeholder.com/400x300?text=No+Image';
+        : (galleryImages.length > 0 && galleryImages[0])
+        ? galleryImages[0]
+        : 'https://via.placeholder.com/400x300?text=No+Image';
 
     return {
       id: bid.auction_id,
       image: imageSrc,
       title: bid.title || 'Auction',
-      currentBid: bid.current_high_bid || bid.starting_bid || bid.amount,
+      currentBid: bid.current_high_bid || bid.starting_bid || bid.amount || 0,
       timeRemaining: timeRemaining,
       viewers: bid.participant_count || 0,
     };
