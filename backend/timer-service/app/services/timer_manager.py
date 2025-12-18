@@ -5,6 +5,7 @@ import time
 import threading
 from typing import Dict, Set, List
 from decimal import Decimal
+from datetime import datetime, timezone
 from shared.redis.client import RedisHelper, RedisKeys
 from shared.database.connection import SessionLocal
 from shared.models.auction import Auction
@@ -264,7 +265,7 @@ class TimerManager:
                 return
 
             auction.status = "closed"
-            auction.ended_at = db.func.now()
+            auction.ended_at = datetime.now(timezone.utc)
 
             # Get current state for high bidder and price
             current_high_bid = float(state.get("current_high_bid") or auction.starting_bid or 0)
