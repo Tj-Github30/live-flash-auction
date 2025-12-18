@@ -106,6 +106,15 @@ class AuctionService:
             logger.warning(f"Failed to presign image url: {e}")
             return image_url
 
+    def _get_bid_count_from_db(self, auction_id: str, db: Session) -> int:
+        """Get bid count from database as fallback when Redis data is unavailable."""
+        try:
+            count = db.query(Bid).filter(Bid.auction_id == auction_id).count()
+            return count
+        except Exception as e:
+            logger.warning(f"Failed to get bid count from DB for auction {auction_id}: {e}")
+            return 0
+
     def _attach_realtime_fields(self, auction: Auction, data: Dict) -> Dict:
         """Attach Redis-derived real-time fields used by the UI."""
         try:
@@ -150,7 +159,25 @@ class AuctionService:
 
             # --- 2. Counts ---
             data["participant_count"] = int(state.get("participant_count", 0) or 0)
-            data["bid_count"] = int(state.get("bid_count", 0) or 0)
+            redis_bid_count = int(state.get("bid_count", 0) or 0)
+            
+            # For closed auctions or when Redis bid_count is 0, try to get from DB
+            is_closed = data.get("status", "").lower() in ["closed", "ended"]
+            if (is_closed or redis_bid_count == 0) and hasattr(auction, "__table__"):
+                try:
+                    db = SessionLocal()
+                    db_bid_count = self._get_bid_count_from_db(auction_id, db)
+                    db.close()
+                    # Use DB count if it's greater than Redis count (Redis might have expired)
+                    if db_bid_count > redis_bid_count:
+                        data["bid_count"] = db_bid_count
+                    else:
+                        data["bid_count"] = redis_bid_count
+                except Exception as e:
+                    logger.warning(f"Failed to get bid count from DB for auction {auction_id}: {e}")
+                    data["bid_count"] = redis_bid_count
+            else:
+                data["bid_count"] = redis_bid_count
 
             # --- 3. High Bid ---
             if state.get("current_high_bid") is not None:
@@ -316,6 +343,31 @@ class AuctionService:
             # Attach Realtime & Winner
             if data.get("status") == "live":
                 data = self._attach_realtime_fields(auction, data)
+            else:
+                # For closed auctions, ensure bid_count is attached
+                auction_status = data.get("status", "").lower()
+                if auction_status in ["closed", "ended"]:
+                    auction_id = str(auction.auction_id)
+                    try:
+                        state = self.redis_helper.get_auction_state(auction_id) or {}
+                        redis_bid_count = int(state.get("bid_count", 0) or 0)
+                        # Fallback to DB if Redis count is 0 or unavailable
+                        if redis_bid_count == 0:
+                            db_session = SessionLocal()
+                            db_bid_count = self._get_bid_count_from_db(auction_id, db_session)
+                            db_session.close()
+                            data["bid_count"] = db_bid_count
+                        else:
+                            data["bid_count"] = redis_bid_count
+                    except Exception as e:
+                        logger.warning(f"Failed to get bid_count for closed auction {auction_id}: {e}")
+                        # Fallback to DB
+                        try:
+                            db_session = SessionLocal()
+                            data["bid_count"] = self._get_bid_count_from_db(auction_id, db_session)
+                            db_session.close()
+                        except:
+                            data["bid_count"] = 0
             data = self._attach_winner_fields(auction, data)
             
             return data
@@ -346,8 +398,33 @@ class AuctionService:
                 # We don't usually load gallery for list view (too heavy), but if you need it:
                 # data["gallery_images"] = ...
 
+                # Attach realtime fields for live auctions
                 if (data.get("status") == "live") or (status == "live"):
                     data = self._attach_realtime_fields(auction, data)
+                else:
+                    # For closed auctions, ensure bid_count is attached
+                    auction_status = data.get("status", "").lower()
+                    if auction_status in ["closed", "ended"]:
+                        # Try to get bid_count from Redis first
+                        try:
+                            auction_id = str(auction.auction_id)
+                            state = self.redis_helper.get_auction_state(auction_id) or {}
+                            redis_bid_count = int(state.get("bid_count", 0) or 0)
+                            # Fallback to DB if Redis count is 0 or unavailable
+                            if redis_bid_count == 0:
+                                db_bid_count = self._get_bid_count_from_db(auction_id, db)
+                                data["bid_count"] = db_bid_count
+                            else:
+                                data["bid_count"] = redis_bid_count
+                        except Exception as e:
+                            logger.warning(f"Failed to get bid_count for closed auction {auction.auction_id}: {e}")
+                            # Fallback to DB
+                            try:
+                                auction_id = str(auction.auction_id)
+                                data["bid_count"] = self._get_bid_count_from_db(auction_id, db)
+                            except:
+                                data["bid_count"] = 0
+                
                 data = self._attach_winner_fields(auction, data)
                 out.append(data)
             return out

@@ -76,7 +76,7 @@ export function SoldItems() {
         <div className="grid grid-cols-12 gap-4 px-6 py-4 bg-secondary/30 border-b border-border">
           <div className="col-span-6">Item</div>
           <div className="col-span-3 text-right">Final Price</div>
-          <div className="col-span-3 text-center">Bids</div>
+          <div className="col-span-3 text-center">Total Bids</div>
         </div>
 
         {/* Table Rows */}
@@ -115,7 +115,7 @@ export function SoldItems() {
                       <CheckCircle2 className="w-3 h-3" />
                       Sold
                     </span>
-                    <span className="text-xs text-muted-foreground">{item.bid_count || 0} bids</span>
+                    <span className="text-xs text-muted-foreground">{item.bid_count || 0} total bids</span>
                   </div>
                 </div>
               </div>
@@ -129,7 +129,7 @@ export function SoldItems() {
 
               {/* Bids */}
               <div className="col-span-3 flex items-center justify-center">
-                <span className="text-muted-foreground">{item.bid_count || 0} bids</span>
+                <span className="text-muted-foreground">{item.bid_count || 0} total bids</span>
               </div>
             </div>
           ))
