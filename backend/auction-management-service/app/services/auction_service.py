@@ -17,7 +17,7 @@ from shared.models.user import User
 from shared.redis.client import RedisHelper, RedisKeys
 from shared.schemas.auction_schemas import AuctionCreateRequest
 from shared.utils.errors import AuctionNotFoundError, ForbiddenError, AuctionClosedError, InvalidBidError
-from shared.utils.helpers import get_current_timestamp_ms, calculate_time_remaining, parse_decimal
+from shared.utils.helpers import get_current_timestamp_ms, calculate_time_remaining, parse_decimal, format_iso_datetime
 from shared.config.settings import settings
 from shared.aws.sqs_client import sqs_client
 import logging
@@ -123,18 +123,30 @@ class AuctionService:
 
             # Try Redis state dict
             if end_time_ms is None:
-                if state.get("end_time"): end_time_ms = int(state.get("end_time"))
+                if state.get("end_time"): 
+                    try:
+                        end_time_ms = int(state.get("end_time"))
+                    except (ValueError, TypeError):
+                        end_time_ms = None
 
             # Fallback to DB calculation
             if end_time_ms is None and getattr(auction, "created_at", None) and getattr(auction, "duration", None):
-                end_time_ms = int(auction.created_at.timestamp() * 1000) + int(auction.duration) * 1000
+                created_at_ms = int(auction.created_at.timestamp() * 1000)
+                end_time_ms = created_at_ms + int(auction.duration) * 1000
+                
+                # Safety check: Ensure end_time is in the future
+                current_time_ms = get_current_timestamp_ms()
+                if end_time_ms <= current_time_ms:
+                    # If calculated end_time is in the past, use current time + duration
+                    logger.warning(f"Calculated end_time for auction {auction_id} is in the past. Using current time + duration instead.")
+                    end_time_ms = current_time_ms + int(auction.duration) * 1000
 
+            # Always set end_time fields if we have a valid end_time_ms
             if end_time_ms is not None and end_time_ms > 0:
                 data["end_time_ms"] = end_time_ms
                 data["time_remaining_seconds"] = calculate_time_remaining(end_time_ms)
-                data["end_time"] = format_iso_datetime(
-                    datetime.fromtimestamp(end_time_ms / 1000, tz=timezone.utc)
-                )
+                # Use a simple ISO string for end time
+                data["end_time"] = datetime.fromtimestamp(end_time_ms / 1000, tz=timezone.utc).isoformat()
 
             # --- 2. Counts ---
             data["participant_count"] = int(state.get("participant_count", 0) or 0)
@@ -389,16 +401,20 @@ class AuctionService:
 
             # Notify winner/losers via SQS notification queue
             try:
+                logger.info(f"Starting notification process for closed auction {auction_id}")
                 # Current state for high bidder and price
                 state = self.redis_helper.get_auction_state(str(auction_id)) or {}
                 current_high_bid = float(state.get("current_high_bid") or auction.starting_bid or 0)
                 high_bidder_id = state.get("high_bidder_id")
+                logger.info(f"Auction {auction_id}: current_high_bid={current_high_bid}, high_bidder_id={high_bidder_id}")
 
                 # Collect participants from top bids (Redis sorted set)
                 top_bids = []
                 try:
                     top_bids = self.redis_helper.get_top_bids(str(auction_id)) or []
-                except Exception:
+                    logger.info(f"Auction {auction_id}: Found {len(top_bids)} top bids")
+                except Exception as e:
+                    logger.warning(f"Failed to get top bids for {auction_id}: {e}")
                     top_bids = []
 
                 participant_ids = []
@@ -407,29 +423,37 @@ class AuctionService:
                     if uid:
                         participant_ids.append(str(uid))
                 participant_ids = list(dict.fromkeys(participant_ids))  # dedupe, preserve order
+                logger.info(f"Auction {auction_id}: participant_ids={participant_ids}")
 
                 # Fallback: derive winner from top bid if not present in state
                 if not high_bidder_id and top_bids:
                     top_bid = top_bids[0]
                     if isinstance(top_bid, dict) and top_bid.get("user_id"):
                         high_bidder_id = top_bid.get("user_id")
+                        logger.info(f"Auction {auction_id}: Derived high_bidder_id from top bid: {high_bidder_id}")
 
-                # Build user map
-                user_map = self._fetch_user_map(db, participant_ids + ([str(high_bidder_id)] if high_bidder_id else []))
+                # Build user map - use a fresh session to avoid issues with committed session
+                user_ids_to_fetch = list(dict.fromkeys(participant_ids + ([str(high_bidder_id)] if high_bidder_id else [])))
+                logger.info(f"Auction {auction_id}: Fetching user info for {len(user_ids_to_fetch)} users")
+                user_map = self._fetch_user_map(db, user_ids_to_fetch)
+                logger.info(f"Auction {auction_id}: Fetched {len(user_map)} users from DB")
 
                 winner = None
                 if high_bidder_id and str(high_bidder_id) in user_map:
                     winner = user_map[str(high_bidder_id)]
+                    logger.info(f"Auction {auction_id}: Winner found: {winner.get('email', 'no email')}")
                 elif high_bidder_id:
                     # Minimal winner info if not in user_map
                     winner = {"user_id": str(high_bidder_id)}
+                    logger.warning(f"Auction {auction_id}: Winner {high_bidder_id} not found in user_map, using minimal info")
 
                 losers = []
                 for pid in participant_ids:
-                    if winner and pid == winner["user_id"]:
+                    if winner and pid == winner.get("user_id"):
                         continue
                     if pid in user_map:
                         losers.append(user_map[pid])
+                logger.info(f"Auction {auction_id}: Found {len(losers)} losers")
 
                 notification_payload = {
                     "type": "auction_closed",
@@ -441,9 +465,11 @@ class AuctionService:
                     "timestamp": get_current_timestamp_ms(),
                 }
 
+                logger.info(f"Auction {auction_id}: Sending notification to SQS: winner={winner is not None}, losers={len(losers)}")
                 sqs_client.send_notification_message(notification_payload)
+                logger.info(f"Auction {auction_id}: Successfully enqueued notification message")
             except Exception as notify_err:
-                logger.warning(f"Failed to enqueue winner/loser notification: {notify_err}")
+                logger.error(f"Failed to enqueue winner/loser notification for {auction_id}: {notify_err}", exc_info=True)
 
             return {
                 "message": "Auction closed successfully",
@@ -466,24 +492,81 @@ class AuctionService:
                 return None
             
             # Use Redis for real-time bid info if available, fallback to DB
-            state = self.redis_helper.get_auction_state(str(auction_id)) or {}
+            state = {}
+            try:
+                state = self.redis_helper.get_auction_state(str(auction_id)) or {}
+            except Exception as e:
+                logger.warning(f"Failed to get Redis state for auction {auction_id}: {e}")
+                state = {}
+            
+            # Get end_time_ms for time_remaining calculation
+            end_time_ms = None
+            try:
+                end_time_key = RedisKeys.auction_end_time(str(auction_id))
+                raw = self.redis_helper.client.get(end_time_key)
+                if raw:
+                    end_time_ms = int(raw)
+            except Exception as e:
+                logger.warning(f"Failed to get end_time from Redis key for auction {auction_id}: {e}")
+            
+            # Try Redis state hash if dedicated key didn't work
+            if end_time_ms is None:
+                try:
+                    if state.get("end_time"):
+                        end_time_ms = int(state.get("end_time"))
+                except (ValueError, TypeError) as e:
+                    logger.warning(f"Failed to parse end_time from Redis state for auction {auction_id}: {e}")
+                    end_time_ms = None
+            
+            # Fallback to DB calculation if Redis doesn't have it
+            if end_time_ms is None and auction.created_at and auction.duration:
+                try:
+                    created_at_ms = int(auction.created_at.timestamp() * 1000)
+                    end_time_ms = created_at_ms + (auction.duration * 1000)
+                    # Safety check: Ensure end_time is in the future
+                    current_time_ms = get_current_timestamp_ms()
+                    if end_time_ms <= current_time_ms:
+                        end_time_ms = current_time_ms + (auction.duration * 1000)
+                except Exception as e:
+                    logger.warning(f"Failed to calculate end_time from DB for auction {auction_id}: {e}")
+                    end_time_ms = None
+            
+            # Calculate time_remaining
+            time_remaining_seconds = None
+            if end_time_ms:
+                try:
+                    time_remaining_seconds = calculate_time_remaining(end_time_ms)
+                except Exception as e:
+                    logger.warning(f"Failed to calculate time_remaining for auction {auction_id}: {e}")
+            
+            # Safely get current_high_bid
+            try:
+                current_high_bid = float(state.get("current_high_bid") or auction.starting_bid)
+            except (ValueError, TypeError):
+                current_high_bid = float(auction.starting_bid)
             
             result = {
                 "auction_id": str(auction.auction_id),
                 "status": auction.status,
-                "current_high_bid": float(state.get("current_high_bid") or auction.starting_bid),
+                "current_high_bid": current_high_bid,
                 "participant_count": int(state.get("participant_count") or 0),
                 "bid_count": int(state.get("bid_count") or 0),
                 "ended_at": auction.ended_at.isoformat() if auction.ended_at else None
             }
             
+            # Add time_remaining if available
+            if time_remaining_seconds is not None:
+                result["time_remaining"] = time_remaining_seconds
+                result["time_remaining_seconds"] = time_remaining_seconds
+            
             # Add recent bids from Redis first (needed to derive high_bidder_id if missing)
+            top_bids = []
             try:
-                top_bids = self.redis_helper.get_top_bids(str(auction_id))
+                top_bids = self.redis_helper.get_top_bids(str(auction_id)) or []
                 if top_bids:
                     result["recent_bids"] = top_bids
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning(f"Failed to get top bids for auction {auction_id}: {e}")
             
             # Add high bidder info if available in Redis state
             high_bidder_id_from_state = state.get("high_bidder_id")
@@ -511,6 +594,9 @@ class AuctionService:
                     result["high_bidder_username"] = str(top_bid[1])
             
             return result
+        except Exception as e:
+            logger.error(f"Error in get_auction_state for auction {auction_id}: {e}", exc_info=True)
+            raise
         finally:
             db.close()
 

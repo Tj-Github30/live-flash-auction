@@ -49,6 +49,11 @@ spec:
           value: "us-east-1"
         - name: CORS_ORIGINS
           value: "*"
+        - name: SQS_NOTIFICATION_QUEUE_URL
+          valueFrom:
+            secretKeyRef:
+              name: auction-secrets
+              key: sqs-notification-queue-url
         # Keep config consistent across services (also used by bid-processing)
         - name: MINIMUM_BID_INCREMENT
           value: "1"

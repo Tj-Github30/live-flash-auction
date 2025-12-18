@@ -14,6 +14,7 @@ spec:
       labels:
         app: timer
     spec:
+      serviceAccountName: timer-service-sa
       containers:
       - name: timer
         image: 938041861431.dkr.ecr.us-east-1.amazonaws.com/live-auction/timer-service:latest

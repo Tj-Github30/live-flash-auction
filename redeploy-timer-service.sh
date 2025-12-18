@@ -33,12 +33,12 @@ echo "Step 3: Pushing new image to ECR..."
 docker push ${IMAGE_NAME}
 
 echo ""
-echo "Step 4: Restarting Kubernetes deployment..."
-kubectl rollout restart deployment/${SERVICE_NAME}
+echo "Step 4: Restarting Kubernetes deployment (default namespace)..."
+kubectl rollout restart deployment/${SERVICE_NAME} -n default
 
 echo ""
 echo "Step 5: Waiting for rollout to complete..."
-kubectl rollout status deployment/${SERVICE_NAME} --timeout=5m
+kubectl rollout status deployment/${SERVICE_NAME} -n default --timeout=5m
 
 echo ""
 echo "=========================================="
@@ -46,9 +46,9 @@ echo "✅ Redeployment Complete!"
 echo "=========================================="
 echo ""
 echo "New pods:"
-kubectl get pods -l app=timer
+kubectl get pods -l app=timer -n default
 echo ""
 echo "To check logs:"
-echo "  kubectl logs -l app=timer --tail=50"
+echo "  kubectl logs -l app=timer -n default --tail=50"
 
 
