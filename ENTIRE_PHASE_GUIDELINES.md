@@ -8,11 +8,10 @@
 7. Phase 7: SQS Queues - DONE 🟩
 8. Phase 8: Lambda Functions- DONE 🟩
 9. Phase 9: Initialize Database - DONE 🟩
-10. Phase 10: EKS Cluster
-11. Phase 11: Backend Services
-12. Phase 12: Update Frontend with backend url
-13. Phase 13: Testing 
-14. Phase 14 : (removed)
+10. Phase 10: EKS Cluster - DONE 🟩
+11. Phase 11: Backend Services - DONE 🟩
+12. Phase 12: Update Frontend with backend url 
+13. Phase 13: Testing - DONE 🟩
 
 ## 📊 Data Storage Architecture
 
