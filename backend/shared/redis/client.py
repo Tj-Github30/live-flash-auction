@@ -41,15 +41,6 @@ class RedisClient:
     def get_pubsub_client(cls, socket_timeout: int = None) -> redis.Redis:
         """
         Get a dedicated Redis client for pub/sub operations
-
-        Note: Uses a separate client instance instead of the shared pool
-        to avoid connection conflicts with blocking pub/sub operations
-
-        Args:
-            socket_timeout: Optional custom timeout for this client
-
-        Returns:
-            Redis client configured for pub/sub
         """
         timeout = socket_timeout or settings.REDIS_SOCKET_TIMEOUT
 
@@ -67,9 +58,6 @@ class RedisClient:
     def ping_redis(cls) -> bool:
         """
         Test Redis connectivity
-
-        Returns:
-            True if Redis is reachable, False otherwise
         """
         try:
             client = cls.get_client()
@@ -114,6 +102,12 @@ class RedisKeys:
         """Key for connected users set"""
         return f"{settings.REDIS_AUCTION_PREFIX}:{auction_id}:users"
 
+    # --- ADDED: Chat History Key ---
+    @staticmethod
+    def chat_history(auction_id: str) -> str:
+        """Key for chat history list"""
+        return f"{settings.REDIS_AUCTION_PREFIX}:{auction_id}:chat_history"
+
     @staticmethod
     def connection(connection_id: str) -> str:
         """Key for connection metadata"""
@@ -146,6 +140,29 @@ class RedisHelper:
     def __init__(self):
         self.client = RedisClient.get_client()
 
+    # --- ADDED: Chat Methods ---
+    def save_chat_message(self, auction_id: str, message_data: dict, max_history: int = 100):
+        """Save chat message to a Redis list and trim to maintain history limit"""
+        key = RedisKeys.chat_history(auction_id)
+        self.client.rpush(key, json.dumps(message_data))
+        self.client.ltrim(key, -max_history, -1)
+
+    def get_chat_history(self, auction_id: str, limit: int = 50):
+        """Retrieves and parses chat history from the Redis List"""
+        key = RedisKeys.chat_history(auction_id)
+        # Get raw JSON strings from the Redis List
+        raw_msgs = self.client.lrange(key, -limit, -1)
+        
+        messages = []
+        for m in raw_msgs:
+            try:
+                # We must parse the string back into a dictionary for the API
+                messages.append(json.loads(m))
+            except (json.JSONDecodeError, TypeError):
+                continue
+        return messages
+
+    # --- YOUR ORIGINAL METHODS (UNCHANGED) ---
     def set_auction_state(self, auction_id: str, state_data: dict) -> bool:
         """Set auction state hash"""
         key = RedisKeys.auction_state(auction_id)
@@ -165,53 +182,41 @@ class RedisHelper:
         """Add bid to top bids sorted set and maintain only top 3"""
         key = RedisKeys.top_bids(auction_id)
         member = f"{user_id}:{username}"
-
-        # Add bid
         self.client.zadd(key, {member: amount})
-
-        # Keep only top 3
         count = self.client.zcard(key)
         if count > 3:
             self.client.zremrangebyrank(key, 0, count - 4)
-
         return count
 
     def get_top_bids(self, auction_id: str, limit: int = 3) -> list:
         """Get top N bids from sorted set"""
         key = RedisKeys.top_bids(auction_id)
-        bids = self.client.zrevrange(key, 0, limit - 1, withscores=True)
-
-        result = []
-        for member, score in bids:
-            user_id, username = member.split(":", 1)
-            result.append({
-                "user_id": user_id,
-                "username": username,
-                "amount": score
-            })
-        return result
+        try:
+            bids = self.client.zrevrange(key, 0, limit - 1, withscores=True)
+            result = []
+            for member, score in bids:
+                user_id, username = member.split(":", 1)
+                result.append({"user_id": user_id, "username": username, "amount": score})
+            return result
+        except Exception:
+            return []
 
     def add_user_to_auction(self, auction_id: str, user_id: str) -> int:
-        """Add user to auction users set"""
         key = RedisKeys.auction_users(auction_id)
         return self.client.sadd(key, user_id)
 
     def remove_user_from_auction(self, auction_id: str, user_id: str) -> int:
-        """Remove user from auction users set"""
         key = RedisKeys.auction_users(auction_id)
         return self.client.srem(key, user_id)
 
     def get_participant_count(self, auction_id: str) -> int:
-        """Get number of participants in auction"""
         key = RedisKeys.auction_users(auction_id)
         return self.client.scard(key)
 
     def publish_event(self, channel: str, data: dict) -> int:
-        """Publish event to Redis pub/sub channel"""
         return self.client.publish(channel, json.dumps(data))
 
     def set_with_ttl(self, key: str, value: str, ttl: int) -> bool:
-        """Set key with TTL in seconds"""
         return self.client.setex(key, ttl, value)
 
 

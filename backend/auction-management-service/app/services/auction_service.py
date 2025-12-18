@@ -592,6 +592,13 @@ class AuctionService:
                     result["high_bidder_username"] = top_bid["username"]
                 elif isinstance(top_bid, list) and len(top_bid) > 1:
                     result["high_bidder_username"] = str(top_bid[1])
+            try:
+                # Use the helper we discussed to get the last 50 messages
+                chat_history = self.redis_helper.get_chat_history(str(auction_id), limit=50)
+                result["chat_messages"] = chat_history # This matches your React code!
+            except Exception as e:
+                logger.warning(f"Failed to get chat history for auction {auction_id}: {e}")
+                result["chat_messages"] = []
             
             return result
         except Exception as e:
