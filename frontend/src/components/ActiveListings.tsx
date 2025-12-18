@@ -4,6 +4,7 @@ import { api, apiJson } from '../utils/api';
 import { useAuth } from '../auth/AuthProvider';
 import { formatTimeRemaining } from '../utils/format';
 import { useNavigate } from 'react-router-dom';
+import { OdometerNumber } from './OdometerNumber';
 
 interface Listing {
   auction_id: string;
@@ -182,8 +183,8 @@ export function ActiveListings() {
 
               {/* Current Bid */}
               <div className="col-span-2 flex items-center justify-end">
-                <div className="text-right">
-                  <p className="text-accent">${(item.current_high_bid || item.starting_bid).toLocaleString()}</p>
+                <div className="text-right overflow-visible" style={{ minHeight: '1.8rem' }}>
+                  <OdometerNumber value={item.current_high_bid || item.starting_bid} />
                 </div>
               </div>
 

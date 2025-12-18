@@ -1,10 +1,11 @@
 import { Clock, TrendingUp, Award } from 'lucide-react';
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { ScrollArea } from './ui/scroll-area';
 import { api } from '../utils/api';
 import { formatCurrency, formatTimeRemaining, bidderAliasForAuction } from '../utils/format';
+import { OdometerNumber } from './OdometerNumber';
 
 interface BiddingPanelProps {
   title: string;
@@ -41,7 +42,31 @@ export function BiddingPanel({
 }: BiddingPanelProps) {
   const [customBid, setCustomBid] = useState('');
   const [isPlacingBid, setIsPlacingBid] = useState(false);
+  const [priceChanged, setPriceChanged] = useState(false);
+  const prevBidRef = useRef<number>(currentBid);
+  const isFirstRender = useRef<boolean>(true);
   const nextMinBid = currentBid + bidIncrement;
+
+  // Detect price changes and trigger animation
+  useEffect(() => {
+    // Skip animation on first render
+    if (isFirstRender.current) {
+      isFirstRender.current = false;
+      prevBidRef.current = currentBid;
+      return;
+    }
+
+    // Only animate if price actually changed
+    if (prevBidRef.current !== currentBid) {
+      setPriceChanged(true);
+      // Reset animation after it completes
+      const timer = setTimeout(() => {
+        setPriceChanged(false);
+      }, 600);
+      prevBidRef.current = currentBid;
+      return () => clearTimeout(timer);
+    }
+  }, [currentBid]);
   const normalizeBidError = (msg?: string) => {
     if (!msg) return 'Failed to place bid';
     const lower = msg.toLowerCase();
@@ -138,11 +163,13 @@ export function BiddingPanel({
       </div>
 
       {/* Current Bid */}
-      <div className="px-4 py-5 border-b border-border bg-secondary/30">
+      <div className={`px-4 py-5 border-b border-border transition-colors duration-300 ${
+        priceChanged ? 'bg-green-50' : 'bg-secondary/30'
+      }`}>
         <p className="text-xs text-muted-foreground mb-1">Current Bid</p>
-        <p className="text-accent mb-3">
-          ${currentBid.toLocaleString()}
-        </p>
+        <div className="mb-3 overflow-visible" style={{ minHeight: '1.8rem' }}>
+          <OdometerNumber value={currentBid} />
+        </div>
         
         <div className="flex items-center gap-2 text-xs text-muted-foreground">
           <Clock className="w-3.5 h-3.5" />
@@ -247,9 +274,9 @@ export function BiddingPanel({
                     <p className="text-xs text-muted-foreground">{bid.timestamp}</p>
                   </div>
                 </div>
-                <p className="text-sm text-foreground">
-                  ${bid.amount.toLocaleString()}
-                </p>
+                <div className="overflow-visible" style={{ minHeight: '1.2rem' }}>
+                  <OdometerNumber value={bid.amount} size="sm" />
+                </div>
               </div>
               ))
             )}

@@ -193,3 +193,12 @@
 html {
   font-size: var(--font-size);
 }
+
+/* Odometer digit styles */
+.odometer-digit {
+  position: relative;
+}
+
+.odometer-digit-inner {
+  will-change: transform;
+}

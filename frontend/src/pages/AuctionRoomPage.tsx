@@ -6,8 +6,6 @@ import { useAuth } from "../auth/AuthProvider";
 import { api, apiJson } from "../utils/api";
 import { formatTimeRemaining } from "../utils/format";
 
-const NO_IMAGE_DATA_URI = 'https://via.placeholder.com/600x400?text=No+Image';
-
 export const AuctionRoomPage: React.FC = () => {
   const { logout } = useAuth();
   const navigate = useNavigate();
@@ -60,12 +58,13 @@ export const AuctionRoomPage: React.FC = () => {
           (endDateObj.getTime() - Date.now()) / 1000;
 
         const formattedAuction: AuctionData = {
+          id: auction.auction_id,
           auctionId: auction.auction_id,
           // 4. Image Fallback: If URL is missing, use the default placeholder
           image: auction.image_url || gallery[0] || NO_IMAGE_DATA_URI,
           galleryImages: gallery,
           title: auction.title,
-          currentBid: parseFloat(String(state?.current_high_bid || auction.current_high_bid || auction.starting_bid || 0)),
+          currentBid: state?.current_high_bid || auction.current_high_bid || auction.starting_bid,
           timeRemaining: formatTimeRemaining(initialTimeRemaining),
           timeRemainingSeconds: typeof initialTimeRemaining === "number" ? initialTimeRemaining : 0,
           viewers: state?.participant_count || 0,
@@ -75,12 +74,11 @@ export const AuctionRoomPage: React.FC = () => {
           year: auction.year,
           seller: auction.seller_name || auction.host_username || "Unknown Seller",
           hostUserId: auction.host_user_id,
-          highBidderId: state?.high_bidder_id || null,
           totalBids: state?.bid_count || auction.bid_count || 0,
+          watchCount: state?.participant_count || 0,
           startTime: formatDateSpecific(startDateObj), 
           endTime: formatDateSpecific(endDateObj),
           bidIncrement: auction.bid_increment || 1,
-          status: state?.status || auction.status || 'live',
         };
 
         setAuctionData(formattedAuction);
@@ -139,7 +137,7 @@ export const AuctionRoomPage: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-background">
-      <Header onLogout={logout} onLogoClick={handleBackToAuctions} />
+      <Header onLogout={logout} />
       <LiveAuctionRoom auction={auctionData} onBack={handleBackToAuctions} />
     </div>
   );

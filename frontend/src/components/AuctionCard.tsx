@@ -1,5 +1,6 @@
 import { Clock, Eye, Heart } from 'lucide-react';
 import { useState } from 'react';
+import { OdometerNumber } from './OdometerNumber';
 
 
 interface AuctionCardProps {
@@ -60,9 +61,9 @@ export function AuctionCard({ image, title, currentBid, timeRemaining, viewers, 
         <div className="flex items-center justify-between mb-3">
           <div>
             <p className="text-xs text-muted-foreground mb-0.5">Current Bid</p>
-            <p className="text-accent tracking-wide">
-              ${currentBid.toLocaleString()}
-            </p>
+            <div className="overflow-visible" style={{ minHeight: '1.8rem' }}>
+              <OdometerNumber value={currentBid} />
+            </div>
           </div>
           
           <div className="text-right">

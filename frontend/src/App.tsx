@@ -8,7 +8,6 @@ import { AuthPage } from "./components/AuthPage";
 import { RequireAuth } from "./auth/RequireAuth";
 import { useAuth } from "./auth/AuthProvider";
 import { AuctionRoomPage } from "./pages/AuctionRoomPage";
-import { MyBids } from "./components/MyBids";
 
 const ProtectedAppShell: React.FC = () => {
   const { logout } = useAuth();
@@ -16,27 +15,57 @@ const ProtectedAppShell: React.FC = () => {
 
   const [activeTab, setActiveTab] = useState<"buy" | "sell" | "my-bids">("buy");
 
-  const handleLogoClick = () => {
-    setActiveTab("buy");
-  };
-
   return (
     <div className="min-h-screen bg-background">
-      <Header onLogout={logout} onLogoClick={handleLogoClick} />
+      <Header onLogout={logout} />
       <SecondaryNav activeTab={activeTab} onTabChange={setActiveTab} />
 
       {activeTab === "buy" && (
         <BuyPage onAuctionClick={(id) => navigate(`/auction/${id}`)} />
       )}
       {activeTab === "sell" && <SellDashboard />}
-      {activeTab === "my-bids" && <MyBids />}
+      {activeTab === "my-bids" && (
+        <div className="pt-[137px] max-w-[1600px] mx-auto px-6 py-16">
+          <div className="text-center">
+            <h2 className="mb-2">My Bids</h2>
+            <p className="text-muted-foreground">
+              Track all your active and past bids
+            </p>
+            <div className="mt-8 p-12 bg-white rounded-lg border border-border">
+              <p className="text-muted-foreground">
+                You haven&apos;t placed any bids yet
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
 
       <footer className="border-t border-border mt-16">
         <div className="max-w-[1600px] mx-auto px-6 py-8">
-          <div className="flex items-center justify-center">
-            <p className="text-xs text-muted-foreground text-center">
+          <div className="flex items-center justify-between">
+            <p className="text-xs text-muted-foreground">
               © 2025 Luxe Auction. All rights reserved.
             </p>
+            <div className="flex gap-6">
+              <a
+                href="#"
+                className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+              >
+                Terms of Service
+              </a>
+              <a
+                href="#"
+                className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+              >
+                Privacy Policy
+              </a>
+              <a
+                href="#"
+                className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+              >
+                Contact
+              </a>
+            </div>
           </div>
         </div>
       </footer>

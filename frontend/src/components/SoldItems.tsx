@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { CheckCircle2 } from 'lucide-react';
 import { api, apiJson } from '../utils/api';
 import { useAuth } from '../auth/AuthProvider';
+import { OdometerNumber } from './OdometerNumber';
 
 interface SoldItem {
   auction_id: string;
@@ -122,8 +123,8 @@ export function SoldItems() {
 
               {/* Final Price */}
               <div className="col-span-3 flex items-center justify-end">
-                <div className="text-right">
-                  <p className="text-accent">${(item.current_high_bid || item.starting_bid).toLocaleString()}</p>
+                <div className="text-right overflow-visible" style={{ minHeight: '1.8rem' }}>
+                  <OdometerNumber value={item.current_high_bid || item.starting_bid} />
                 </div>
               </div>
 
@@ -138,3 +139,4 @@ export function SoldItems() {
     </div>
   );
 }
+
