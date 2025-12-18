@@ -1,5 +1,6 @@
 import { Clock, Eye, Heart } from 'lucide-react';
 import { useState } from 'react';
+import { OdometerNumber } from './OdometerNumber';
 
 
 interface AuctionCardProps {
@@ -14,6 +15,7 @@ interface AuctionCardProps {
 
 export function AuctionCard({ image, title, currentBid, timeRemaining, viewers, onClick }: AuctionCardProps) {
   const [isWatchlisted, setIsWatchlisted] = useState(false);
+  const isLive = timeRemaining !== "Ended";
 
   return (
     <div 
@@ -29,10 +31,12 @@ export function AuctionCard({ image, title, currentBid, timeRemaining, viewers, 
         />
         
         {/* LIVE Badge */}
-        <div className="absolute top-3 left-3 flex items-center gap-1.5 bg-white/95 backdrop-blur-sm px-2.5 py-1 rounded-full">
-          <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
-          <span className="text-xs tracking-wide">LIVE</span>
-        </div>
+        {isLive && (
+          <div className="absolute top-3 left-3 flex items-center gap-1.5 bg-white/95 backdrop-blur-sm px-2.5 py-1 rounded-full">
+            <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
+            <span className="text-xs tracking-wide">LIVE</span>
+          </div>
+        )}
 
         {/* Watchlist Button */}
         <button
@@ -40,11 +44,7 @@ export function AuctionCard({ image, title, currentBid, timeRemaining, viewers, 
             e.stopPropagation();
             setIsWatchlisted(!isWatchlisted);
           }}
-          className="absolute top-3 right-3 p-2 bg-white/95 backdrop-blur-sm rounded-full hover:bg-white transition-colors"
         >
-          <Heart 
-            className={`w-4 h-4 ${isWatchlisted ? 'fill-accent text-accent' : 'text-foreground'}`}
-          />
         </button>
 
         {/* Viewers */}
@@ -61,9 +61,9 @@ export function AuctionCard({ image, title, currentBid, timeRemaining, viewers, 
         <div className="flex items-center justify-between mb-3">
           <div>
             <p className="text-xs text-muted-foreground mb-0.5">Current Bid</p>
-            <p className="text-accent tracking-wide">
-              ${currentBid.toLocaleString()}
-            </p>
+            <div className="overflow-visible" style={{ minHeight: '1.8rem' }}>
+              <OdometerNumber value={currentBid} />
+            </div>
           </div>
           
           <div className="text-right">

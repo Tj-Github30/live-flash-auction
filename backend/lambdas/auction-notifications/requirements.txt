@@ -1,0 +1,5 @@
+# Lambda - Auction Notifications
+boto3==1.34.10
+pydantic==2.5.0
+python-json-logger==2.0.7
+requests==2.31.0

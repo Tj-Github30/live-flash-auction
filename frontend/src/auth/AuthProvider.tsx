@@ -14,6 +14,9 @@ type Tokens = {
 
 type UserInfo = {
   sub: string;
+  // Cognito ID token commonly includes this key; keep it optional for safety.
+  "cognito:username"?: string;
+  username?: string;
   email?: string;
   phone_number?: string;
   name?: string;
@@ -21,6 +24,7 @@ type UserInfo = {
 
 type AuthContextType = {
   isAuthenticated: boolean;
+  isLoading: boolean;
   tokens: Tokens | null;
   user: UserInfo | null;
   login: () => void;
@@ -77,6 +81,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   children,
 }) => {
   const [tokens, setTokens] = useState<Tokens | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
   const loadTokens = React.useCallback(() => {
     const stored = localStorage.getItem(STORAGE_KEY);
@@ -105,10 +110,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
       const url = new URL(window.location.href);
       url.hash = "";
       window.history.replaceState({}, "", url.toString());
+      setIsLoading(false);
       return;
     }
 
     loadTokens();
+    setIsLoading(false);
   }, [loadTokens]);
 
   useEffect(() => {
@@ -172,6 +179,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
 
   const value: AuthContextType = {
     isAuthenticated: !!tokens,
+    isLoading,
     tokens,
     user,
     login,

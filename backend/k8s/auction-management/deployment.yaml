@@ -1,0 +1,91 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: auction-management-service
+  labels:
+    app: auction-management
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: auction-management
+  template:
+    metadata:
+      labels:
+        app: auction-management
+    spec:
+      serviceAccountName: auction-management-sa
+      containers:
+      - name: auction-management
+        image: 938041861431.dkr.ecr.us-east-1.amazonaws.com/live-auction/auction-management-service:latest
+        ports:
+        - containerPort: 8000
+        env:
+        - name: DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: auction-secrets
+              key: database-url
+        - name: REDIS_URL
+          valueFrom:
+            secretKeyRef:
+              name: auction-secrets
+              key: redis-url
+        - name: COGNITO_USER_POOL_ID
+          valueFrom:
+            secretKeyRef:
+              name: auction-secrets
+              key: cognito-user-pool-id
+        - name: COGNITO_APP_CLIENT_ID
+          valueFrom:
+            secretKeyRef:
+              name: auction-secrets
+              key: cognito-app-client-id
+        - name: AWS_S3_BUCKET_NAME
+          value: "live-flash-auction-images" 
+        - name: COGNITO_REGION
+          value: "us-east-1"
+        - name: AWS_REGION
+          value: "us-east-1"
+        - name: CORS_ORIGINS
+          value: "*"
+        - name: SQS_NOTIFICATION_QUEUE_URL
+          valueFrom:
+            secretKeyRef:
+              name: auction-secrets
+              key: sqs-notification-queue-url
+        # Keep config consistent across services (also used by bid-processing)
+        - name: MINIMUM_BID_INCREMENT
+          value: "1"
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "250m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: 8000
+          initialDelaySeconds: 10
+          periodSeconds: 5
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: auction-management-service
+spec:
+  selector:
+    app: auction-management
+  ports:
+  - protocol: TCP
+    port: 8000
+    targetPort: 8000
+  type: ClusterIP

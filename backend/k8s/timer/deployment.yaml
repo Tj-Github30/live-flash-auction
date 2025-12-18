@@ -1,0 +1,66 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: timer-service
+  labels:
+    app: timer
+spec:
+  replicas: 1  # Single instance for MVP
+  selector:
+    matchLabels:
+      app: timer
+  template:
+    metadata:
+      labels:
+        app: timer
+    spec:
+      serviceAccountName: timer-service-sa
+      containers:
+      - name: timer
+        image: 938041861431.dkr.ecr.us-east-1.amazonaws.com/live-auction/timer-service:latest
+        ports:
+        - containerPort: 8003
+        env:
+        - name: DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: auction-secrets
+              key: database-url
+        - name: REDIS_URL
+          valueFrom:
+            secretKeyRef:
+              name: auction-secrets
+              key: redis-url
+        - name: AWS_REGION
+          value: "us-east-1"
+        - name: SQS_NOTIFICATION_QUEUE_URL
+          valueFrom:
+            secretKeyRef:
+              name: auction-secrets
+              key: sqs-notification-queue-url
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "250m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8003
+          initialDelaySeconds: 20
+          periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: timer-service
+spec:
+  selector:
+    app: timer
+  ports:
+  - protocol: TCP
+    port: 8003
+    targetPort: 8003
+  type: ClusterIP

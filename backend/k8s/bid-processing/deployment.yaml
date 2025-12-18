@@ -1,0 +1,80 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: bid-processing-service
+  labels:
+    app: bid-processing
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: bid-processing
+  template:
+    metadata:
+      labels:
+        app: bid-processing
+    spec:
+      containers:
+      - name: bid-processing
+        image: 938041861431.dkr.ecr.us-east-1.amazonaws.com/live-auction/bid-processing-service:latest
+        ports:
+        - containerPort: 8002
+        env:
+        - name: DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: auction-secrets
+              key: database-url
+        - name: REDIS_URL
+          valueFrom:
+            secretKeyRef:
+              name: auction-secrets
+              key: redis-url
+        - name: AWS_REGION
+          value: "us-east-1"
+        - name: COGNITO_USER_POOL_ID
+          valueFrom:
+            secretKeyRef:
+              name: auction-secrets
+              key: cognito-user-pool-id
+        - name: COGNITO_APP_CLIENT_ID
+          valueFrom:
+            secretKeyRef:
+              name: auction-secrets
+              key: cognito-app-client-id
+        - name: COGNITO_REGION
+          value: "us-east-1"
+        # Bid rules
+        - name: MINIMUM_BID_INCREMENT
+          value: "1"
+        - name: SQS_BID_QUEUE_URL
+          valueFrom:
+            secretKeyRef:
+              name: auction-secrets
+              key: sqs-bid-queue-url
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "500m"
+          limits:
+            memory: "512Mi"
+            cpu: "1000m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8002
+          initialDelaySeconds: 20
+          periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: bid-processing-service
+spec:
+  selector:
+    app: bid-processing
+  ports:
+  - protocol: TCP
+    port: 8002
+    targetPort: 8002
+  type: ClusterIP

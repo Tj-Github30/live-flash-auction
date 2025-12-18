@@ -1,0 +1,6 @@
+# Auction Management Service Dependencies
+-r ../shared/requirements.txt
+
+flask-cors==4.0.0
+flask-restful==0.3.10
+gunicorn==21.2.0

@@ -1,0 +1,27 @@
+# Shared dependencies for all services
+flask==3.0.0
+python-dotenv==1.0.0
+pydantic==2.5.0
+pydantic-settings==2.1.0
+
+# Database
+sqlalchemy==2.0.23
+psycopg2-binary==2.9.9
+alembic==1.13.0
+
+# Redis
+redis==5.0.1
+hiredis==2.3.2
+
+# AWS
+boto3==1.34.10
+botocore==1.34.10
+
+# Authentication
+pyjwt[crypto]==2.8.0
+cryptography==41.0.7
+requests==2.31.0
+
+# Utilities
+marshmallow==3.20.1
+python-json-logger==2.0.7
