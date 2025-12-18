@@ -6,37 +6,40 @@ import json
 import boto3
 import os
 import logging
+from typing import List, Dict
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
 # Initialize clients
-sns = boto3.client("sns", region_name=os.environ.get("AWS_REGION", "us-east-1"))
 ses = boto3.client("ses", region_name=os.environ.get("AWS_REGION", "us-east-1"))
+
+FROM_EMAIL = os.environ.get("NOTIFY_FROM_EMAIL") or os.environ.get("SES_FROM_EMAIL")
 
 
 def lambda_handler(event, context):
     """
-    Process SQS messages containing auction end notifications
-
-    Args:
-        event: SQS event with notification messages
-        context: Lambda context
-
-    Returns:
-        Processing results
+    Process SQS messages containing notifications.
+    Expected message for auction close (type=auction_closed):
+    {
+      "type": "auction_closed",
+      "auction_id": "...",
+      "title": "...",
+      "final_price": 123.45,
+      "winner": { "user_id": "...", "email": "...", "name": "...", "username": "..." },
+      "losers": [{ "user_id": "...", "email": "...", "name": "...", "username": "..." }],
+      "timestamp": 123456789
+    }
     """
     logger.info(f"Processing {len(event['Records'])} notification records")
 
     for record in event["Records"]:
         try:
-            # Parse message body
             message_body = json.loads(record["body"])
-
             notification_type = message_body.get("type")
 
-            if notification_type == "auction_end":
-                process_auction_end_notification(message_body)
+            if notification_type == "auction_closed":
+                process_auction_closed_notification(message_body)
 
         except Exception as e:
             logger.error(f"Error processing notification: {e}", exc_info=True)
@@ -47,47 +50,63 @@ def lambda_handler(event, context):
     }
 
 
-def process_auction_end_notification(data: dict):
+def process_auction_closed_notification(data: Dict):
     """
-    Send auction end notification to winner
-
-    Args:
-        data: Auction end data
+    Send winner + loser emails when an auction closes.
     """
     try:
-        auction_id = data["auction_id"]
-        winner_id = data["winner_id"]
-        winner_username = data.get("winner_username", "User")
-        winning_bid = data["winning_bid"]
-        auction_title = data.get("auction_title", "Auction")
+        auction_title = data.get("title", "Auction")
+        final_price = data.get("final_price", 0)
+        winner = data.get("winner")
+        losers: List[Dict] = data.get("losers", []) or []
 
-        logger.info(f"Auction ended: {auction_id}, Winner: {winner_id}")
+        if not FROM_EMAIL:
+            logger.warning("NOTIFY_FROM_EMAIL/SES_FROM_EMAIL not set; skipping email sends.")
+            return
 
-        # TODO: Get winner email from database
-        # For now, log the notification
-        logger.info(f"Would send email to winner {winner_username}")
-        logger.info(f"Auction: {auction_title}, Winning bid: ${winning_bid}")
+        # Winner email
+        if winner and winner.get("email"):
+            send_email(
+                to_addresses=[winner["email"]],
+                subject=f"You won: {auction_title}",
+                html_body=f"""
+                    <h2>Congratulations!</h2>
+                    <p>You won <strong>{auction_title}</strong> for ${final_price}.</p>
+                """,
+                text_body=f"You won {auction_title} for ${final_price}."
+            )
 
-        # Example: Send SNS notification
-        # sns.publish(
-        #     TopicArn=os.environ.get("SNS_TOPIC_ARN"),
-        #     Subject=f"Congratulations! You won: {auction_title}",
-        #     Message=f"You won the auction with a bid of ${winning_bid}!"
-        # )
-
-        # Example: Send SES email
-        # ses.send_email(
-        #     Source="noreply@auction.com",
-        #     Destination={"ToAddresses": [winner_email]},
-        #     Message={
-        #         "Subject": {"Data": f"You Won: {auction_title}"},
-        #         "Body": {
-        #             "Html": {
-        #                 "Data": f"<h1>Congratulations!</h1><p>You won with ${winning_bid}</p>"
-        #             }
-        #         }
-        #     }
-        # )
+        # Loser emails
+        for loser in losers:
+            if not loser.get("email"):
+                continue
+            send_email(
+                to_addresses=[loser["email"]],
+                subject=f"Auction ended: {auction_title}",
+                html_body=f"""
+                    <h3>Auction ended</h3>
+                    <p>You were outbid on <strong>{auction_title}</strong>. Final price: ${final_price}.</p>
+                """,
+                text_body=f"You were outbid on {auction_title}. Final price: ${final_price}."
+            )
 
     except Exception as e:
-        logger.error(f"Failed to send notification: {e}", exc_info=True)
+        logger.error(f"Failed to send auction_closed notification: {e}", exc_info=True)
+
+
+def send_email(to_addresses: List[str], subject: str, html_body: str, text_body: str = ""):
+    try:
+        ses.send_email(
+            Source=FROM_EMAIL,
+            Destination={"ToAddresses": to_addresses},
+            Message={
+                "Subject": {"Data": subject},
+                "Body": {
+                    "Html": {"Data": html_body},
+                    "Text": {"Data": text_body or subject},
+                },
+            },
+        )
+        logger.info(f"Sent email to {to_addresses}: {subject}")
+    except Exception as e:
+        logger.error(f"SES send failed to {to_addresses}: {e}", exc_info=True)

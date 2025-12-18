@@ -19,6 +19,7 @@ from shared.schemas.auction_schemas import AuctionCreateRequest
 from shared.utils.errors import AuctionNotFoundError, ForbiddenError, AuctionClosedError, InvalidBidError
 from shared.utils.helpers import get_current_timestamp_ms, calculate_time_remaining, parse_decimal
 from shared.config.settings import settings
+from shared.aws.sqs_client import sqs_client
 import logging
 
 logger = logging.getLogger(__name__)
@@ -341,6 +342,21 @@ class AuctionService:
         finally:
             db.close()
     
+    def _fetch_user_map(self, db: Session, user_ids: list) -> Dict[str, Dict]:
+        """Return a map of user_id -> user dict (email, name, username)."""
+        if not user_ids:
+            return {}
+        rows = db.query(User).filter(User.user_id.in_(user_ids)).all()
+        out = {}
+        for u in rows:
+            out[str(u.user_id)] = {
+                "user_id": str(u.user_id),
+                "email": u.email,
+                "name": u.name,
+                "username": u.username,
+            }
+        return out
+
     def close_auction(self, auction_id, user_id):
         """
         Manually closes an auction.
@@ -370,6 +386,64 @@ class AuctionService:
                 self.redis_helper.client.hset(f"auction:{auction_id}:state", "status", "closed")
             except Exception as re:
                 logger.warning(f"Failed to update redis during manual close: {re}")
+
+            # Notify winner/losers via SQS notification queue
+            try:
+                # Current state for high bidder and price
+                state = self.redis_helper.get_auction_state(str(auction_id)) or {}
+                current_high_bid = float(state.get("current_high_bid") or auction.starting_bid or 0)
+                high_bidder_id = state.get("high_bidder_id")
+
+                # Collect participants from top bids (Redis sorted set)
+                top_bids = []
+                try:
+                    top_bids = self.redis_helper.get_top_bids(str(auction_id)) or []
+                except Exception:
+                    top_bids = []
+
+                participant_ids = []
+                for b in top_bids:
+                    uid = b.get("user_id") if isinstance(b, dict) else None
+                    if uid:
+                        participant_ids.append(str(uid))
+                participant_ids = list(dict.fromkeys(participant_ids))  # dedupe, preserve order
+
+                # Fallback: derive winner from top bid if not present in state
+                if not high_bidder_id and top_bids:
+                    top_bid = top_bids[0]
+                    if isinstance(top_bid, dict) and top_bid.get("user_id"):
+                        high_bidder_id = top_bid.get("user_id")
+
+                # Build user map
+                user_map = self._fetch_user_map(db, participant_ids + ([str(high_bidder_id)] if high_bidder_id else []))
+
+                winner = None
+                if high_bidder_id and str(high_bidder_id) in user_map:
+                    winner = user_map[str(high_bidder_id)]
+                elif high_bidder_id:
+                    # Minimal winner info if not in user_map
+                    winner = {"user_id": str(high_bidder_id)}
+
+                losers = []
+                for pid in participant_ids:
+                    if winner and pid == winner["user_id"]:
+                        continue
+                    if pid in user_map:
+                        losers.append(user_map[pid])
+
+                notification_payload = {
+                    "type": "auction_closed",
+                    "auction_id": str(auction_id),
+                    "title": auction.title,
+                    "final_price": current_high_bid,
+                    "winner": winner,
+                    "losers": losers,
+                    "timestamp": get_current_timestamp_ms(),
+                }
+
+                sqs_client.send_notification_message(notification_payload)
+            except Exception as notify_err:
+                logger.warning(f"Failed to enqueue winner/loser notification: {notify_err}")
 
             return {
                 "message": "Auction closed successfully",

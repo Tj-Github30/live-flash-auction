@@ -3,11 +3,12 @@ Timer Manager - Manages all active auction timers
 """
 import time
 import threading
-from typing import Dict, Set
+from typing import Dict, Set, List
 from decimal import Decimal
 from shared.redis.client import RedisHelper, RedisKeys
 from shared.database.connection import SessionLocal
 from shared.models.auction import Auction
+from shared.models.user import User
 from shared.aws.sqs_client import sqs_client
 from shared.utils.helpers import get_current_timestamp_ms, calculate_time_remaining
 from shared.config.settings import settings
@@ -219,15 +220,42 @@ class TimerManager:
                 "auction_ended": True
             })
 
-            # Send notification to SQS
+            # Send notification to SQS (winner + losers)
             if winner_id:
+                final_price = float(state.get("current_high_bid", auction.starting_bid or 0))
+
+                # Collect participants from top bids (Redis sorted set)
+                top_bids = []
+                try:
+                    top_bids = self.redis_helper.get_top_bids(str(auction_id)) or []
+                except Exception:
+                    top_bids = []
+
+                participant_ids: List[str] = []
+                for b in top_bids:
+                    uid = b.get("user_id") if isinstance(b, dict) else None
+                    if uid:
+                        participant_ids.append(str(uid))
+                participant_ids = list(dict.fromkeys(participant_ids))  # dedupe
+
+                # Build user map
+                user_map = self._fetch_user_map(db, participant_ids + [str(winner_id)])
+
+                winner_user = user_map.get(str(winner_id))
+                losers = []
+                for pid in participant_ids:
+                    if winner_user and pid == winner_user.get("user_id"):
+                        continue
+                    if pid in user_map:
+                        losers.append(user_map[pid])
+
                 notification_data = {
-                    "type": "auction_end",
+                    "type": "auction_closed",
                     "auction_id": auction_id,
-                    "winner_id": winner_id,
-                    "winner_username": state.get("high_bidder_username"),
-                    "winning_bid": float(state.get("current_high_bid", 0)),
-                    "auction_title": auction.title,
+                    "title": auction.title,
+                    "final_price": final_price,
+                    "winner": winner_user,
+                    "losers": losers,
                     "timestamp": get_current_timestamp_ms()
                 }
                 sqs_client.send_notification_message(notification_data)
@@ -271,3 +299,18 @@ class TimerManager:
 
         except Exception as e:
             logger.error(f"Database sync error: {e}", exc_info=True)
+
+    def _fetch_user_map(self, db, user_ids: List[str]) -> Dict[str, Dict]:
+        """Return map of user_id -> {user_id, email, name, username}"""
+        if not user_ids:
+            return {}
+        rows = db.query(User).filter(User.user_id.in_(user_ids)).all()
+        out = {}
+        for u in rows:
+            out[str(u.user_id)] = {
+                "user_id": str(u.user_id),
+                "email": u.email,
+                "name": u.name,
+                "username": u.username,
+            }
+        return out
