@@ -53,6 +53,7 @@ export function LiveAuctionRoom({ auction, onBack }: LiveAuctionRoomProps) {
   const [highBidderId, setHighBidderId] = useState<string | null>(auction.highBidderId || null);
   const [isClosing, setIsClosing] = useState(false);
   const [status, setStatus] = useState(auction.status || 'live');
+  const [totalBids, setTotalBids] = useState(auction.totalBids || 0);
 
   const currentUserId = user?.sub || null;
   
@@ -147,6 +148,7 @@ export function LiveAuctionRoom({ auction, onBack }: LiveAuctionRoomProps) {
         if (typeof data?.current_high_bid === "number") setCurrentBid(data.current_high_bid);
         if (data?.high_bidder_id) setHighBidderId(String(data.high_bidder_id));
         if (data?.status) setStatus(data.status);
+        if (typeof data?.bid_count === "number") setTotalBids(data.bid_count);
 
         if (Array.isArray(data?.chat_messages)) {
           setChatMessages(data.chat_messages.map((msg: any) => ({
@@ -178,6 +180,7 @@ export function LiveAuctionRoom({ auction, onBack }: LiveAuctionRoomProps) {
       }
       if (data.current_high_bid !== undefined) setCurrentBid(data.current_high_bid);
       if (data.participant_count !== undefined) setViewers(data.participant_count);
+      if (typeof data.bid_count === "number") setTotalBids(data.bid_count);
     });
 
     socket.on('connect', () => {
@@ -198,6 +201,20 @@ export function LiveAuctionRoom({ auction, onBack }: LiveAuctionRoomProps) {
         }));
         setRecentBids(mapped);
         persistRecentBids(mapped);
+        
+        // Update total bids count - prefer bid_count from data, otherwise use recentBids length
+        if (typeof data.bid_count === "number") {
+          setTotalBids(data.bid_count);
+        } else if (mapped.length > 0) {
+          // Use the length of recent bids as fallback
+          setTotalBids(mapped.length);
+        } else {
+          // Increment if we know a bid was placed but don't have the count
+          setTotalBids(prev => prev + 1);
+        }
+      } else if (typeof data.bid_count === "number") {
+        // If bid_count is available but no top_bids, still update the count
+        setTotalBids(data.bid_count);
       }
     });
 
@@ -261,6 +278,7 @@ export function LiveAuctionRoom({ auction, onBack }: LiveAuctionRoomProps) {
         if (typeof data?.current_high_bid === "number") setCurrentBid(data.current_high_bid);
         if (data?.high_bidder_id !== undefined) setHighBidderId(data.high_bidder_id ? String(data.high_bidder_id) : null);
         if (data?.status) setStatus(data.status);
+        if (typeof data?.bid_count === "number") setTotalBids(data.bid_count);
       } catch { /* ignore */ }
     };
 
@@ -374,7 +392,7 @@ export function LiveAuctionRoom({ auction, onBack }: LiveAuctionRoomProps) {
           </div>
         </div>
 
-        <ItemDetailsSection description={auction.description} category={auction.category} condition={auction.condition} seller={auction.seller} auctionId={auction.auctionId} totalBids={auction.totalBids} watchCount={viewers} startTime={auction.startTime} endTime={auction.endTime} />
+        <ItemDetailsSection description={auction.description} category={auction.category} condition={auction.condition} seller={auction.seller} auctionId={auction.auctionId} totalBids={totalBids} watchCount={viewers} startTime={auction.startTime} endTime={auction.endTime} />
       </div>
     </div>
   );
