@@ -7,6 +7,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     postgresql-client \
     && rm -rf /var/lib/apt/lists/*
 
+#       Test modification for CICD pipeline
 #    /app/backend/shared
 #    /app/backend/auction-management-service
 COPY shared shared
