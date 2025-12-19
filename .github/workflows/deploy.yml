@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+      - frank-dev
   workflow_dispatch:  # Allow manual trigger
 
 # Cancel in-progress runs for the same workflow
