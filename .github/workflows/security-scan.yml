@@ -1,0 +1,192 @@
+name: Security Scan
+
+on:
+  pull_request:
+    branches:
+      - main
+  schedule:
+    # Run security scans weekly on Sundays at 2 AM UTC
+    - cron: '0 2 * * 0'
+  workflow_dispatch:  # Allow manual trigger
+
+jobs:
+  # Scan backend Docker images for vulnerabilities
+  docker-security-scan:
+    name: Scan Docker Images
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        service:
+          - auction-management-service
+          - websocket-service
+          - bid-processing-service
+          - timer-service
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Build Docker image
+        run: |
+          docker build \
+            -f backend/${{ matrix.service }}/Dockerfile \
+            -t ${{ matrix.service }}:scan \
+            backend/
+
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: '${{ matrix.service }}:scan'
+          format: 'sarif'
+          output: 'trivy-results-${{ matrix.service }}.sarif'
+          severity: 'CRITICAL,HIGH'
+
+      - name: Upload Trivy results to GitHub Security tab
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: 'trivy-results-${{ matrix.service }}.sarif'
+          category: 'docker-${{ matrix.service }}'
+
+      - name: Run Trivy vulnerability scanner (table output)
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: '${{ matrix.service }}:scan'
+          format: 'table'
+          severity: 'CRITICAL,HIGH'
+
+  # Scan frontend dependencies for vulnerabilities
+  frontend-security-scan:
+    name: Scan Frontend Dependencies
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Run npm audit
+        working-directory: frontend
+        run: |
+          npm audit --audit-level=moderate --json > npm-audit.json || true
+          cat npm-audit.json
+
+      - name: Check for high/critical vulnerabilities
+        working-directory: frontend
+        run: |
+          # Fail if there are high or critical vulnerabilities
+          if npm audit --audit-level=high; then
+            echo "✓ No high or critical vulnerabilities found"
+          else
+            echo "⚠ High or critical vulnerabilities detected"
+            echo "Run 'npm audit fix' to resolve automatically fixable issues"
+            exit 1
+          fi
+
+      - name: Upload npm audit results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: npm-audit-results
+          path: frontend/npm-audit.json
+
+  # Scan backend Python dependencies
+  python-security-scan:
+    name: Scan Python Dependencies
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install safety
+
+      - name: Scan shared dependencies
+        working-directory: backend/shared
+        run: |
+          echo "Scanning shared dependencies..."
+          safety check --json --file requirements.txt > safety-shared.json || true
+          cat safety-shared.json
+
+      - name: Scan auction-management-service dependencies
+        working-directory: backend/auction-management-service
+        run: |
+          echo "Scanning auction-management-service dependencies..."
+          safety check --json --file requirements.txt > safety-auction.json || true
+          cat safety-auction.json
+
+      - name: Upload Safety results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: python-safety-results
+          path: |
+            backend/shared/safety-shared.json
+            backend/auction-management-service/safety-auction.json
+
+  # Static code analysis for secrets and security issues
+  secret-scan:
+    name: Scan for Secrets
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Fetch all history for better secret detection
+
+      - name: Run Gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # Security summary
+  security-summary:
+    name: Security Scan Summary
+    needs: [docker-security-scan, frontend-security-scan, python-security-scan, secret-scan]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Generate summary
+        run: |
+          echo "# Security Scan Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Date:** $(date -u '+%Y-%m-%d %H:%M:%S UTC')" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          echo "## Scan Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Component | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|-----------|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Docker Images | ${{ needs.docker-security-scan.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Frontend Dependencies | ${{ needs.frontend-security-scan.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Python Dependencies | ${{ needs.python-security-scan.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Secret Scanning | ${{ needs.secret-scan.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          if [ "${{ needs.docker-security-scan.result }}" = "failure" ] || \
+             [ "${{ needs.frontend-security-scan.result }}" = "failure" ] || \
+             [ "${{ needs.python-security-scan.result }}" = "failure" ] || \
+             [ "${{ needs.secret-scan.result }}" = "failure" ]; then
+            echo "⚠️ **Security issues detected.** Please review the detailed results above." >> $GITHUB_STEP_SUMMARY
+          else
+            echo "✅ **All security scans passed!**" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "---" >> $GITHUB_STEP_SUMMARY
+          echo "For detailed vulnerability information, check the Security tab." >> $GITHUB_STEP_SUMMARY

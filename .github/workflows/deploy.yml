@@ -1,0 +1,242 @@
+name: Deploy to Staging
+
+on:
+  push:
+    branches:
+      - main
+      - frank-dev
+  workflow_dispatch:  # Allow manual trigger
+
+# Cancel in-progress runs for the same workflow
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # Detect what changed to optimize builds
+  detect-changes:
+    name: Detect Changes
+    runs-on: ubuntu-latest
+    outputs:
+      backend: ${{ steps.filter.outputs.backend }}
+      frontend: ${{ steps.filter.outputs.frontend }}
+      backend-services: ${{ steps.detect-services.outputs.services }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2  # Need at least 2 commits to detect changes
+
+      - name: Detect changed paths
+        uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            backend:
+              - 'backend/**'
+            frontend:
+              - 'frontend/**'
+
+      - name: Detect changed backend services
+        id: detect-services
+        if: steps.filter.outputs.backend == 'true'
+        run: |
+          # Get list of changed files in backend
+          CHANGED_FILES=$(git diff --name-only HEAD^ HEAD -- backend/)
+
+          # Initialize services array
+          SERVICES="[]"
+
+          # Check each service directory
+          if echo "$CHANGED_FILES" | grep -q "backend/auction-management-service/\|backend/shared/"; then
+            SERVICES=$(echo "$SERVICES" | jq '. + ["auction-management-service"]')
+          fi
+
+          if echo "$CHANGED_FILES" | grep -q "backend/websocket-service/\|backend/shared/"; then
+            SERVICES=$(echo "$SERVICES" | jq '. + ["websocket-service"]')
+          fi
+
+          if echo "$CHANGED_FILES" | grep -q "backend/bid-processing-service/\|backend/shared/"; then
+            SERVICES=$(echo "$SERVICES" | jq '. + ["bid-processing-service"]')
+          fi
+
+          if echo "$CHANGED_FILES" | grep -q "backend/timer-service/\|backend/shared/"; then
+            SERVICES=$(echo "$SERVICES" | jq '. + ["timer-service"]')
+          fi
+
+          # If shared/ changed, rebuild all services
+          if echo "$CHANGED_FILES" | grep -q "backend/shared/"; then
+            SERVICES='["auction-management-service","websocket-service","bid-processing-service","timer-service"]'
+          fi
+
+          # If no services detected but backend changed, rebuild all
+          if [ "$SERVICES" = "[]" ]; then
+            SERVICES='["auction-management-service","websocket-service","bid-processing-service","timer-service"]'
+          fi
+
+          echo "services=$SERVICES" >> $GITHUB_OUTPUT
+          echo "Services to build: $SERVICES"
+
+  # Backend: Build and push Docker images
+  backend-deploy:
+    name: Build & Push Backend
+    needs: detect-changes
+    if: needs.detect-changes.outputs.backend == 'true'
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        service: ${{ fromJson(needs.detect-changes.outputs.backend-services) }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+        with:
+          driver-opts: |
+            image=moby/buildkit:latest
+            network=host
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ steps.login-ecr.outputs.registry }}/${{ secrets.DOCKER_REPOSITORY_PREFIX }}${{ matrix.service }}
+          tags: |
+            type=sha,prefix={{branch}}-,format=short
+            type=raw,value=latest
+            type=raw,value={{branch}}-{{date 'YYYYMMDD-HHmmss'}}
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./backend
+          file: ./backend/${{ matrix.service }}/Dockerfile
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=registry,ref=${{ steps.login-ecr.outputs.registry }}/${{ secrets.DOCKER_REPOSITORY_PREFIX }}${{ matrix.service }}:buildcache
+          cache-to: type=registry,ref=${{ steps.login-ecr.outputs.registry }}/${{ secrets.DOCKER_REPOSITORY_PREFIX }}${{ matrix.service }}:buildcache,mode=max
+          build-args: |
+            SERVICE_NAME=${{ matrix.service }}
+
+      - name: Image digest
+        run: |
+          echo "Image pushed to ECR:"
+          echo "Registry: ${{ steps.login-ecr.outputs.registry }}"
+          echo "Image: ${{ steps.login-ecr.outputs.registry }}/${{ secrets.DOCKER_REPOSITORY_PREFIX }}${{ matrix.service }}:latest"
+          echo "Digest: ${{ steps.meta.outputs.digest }}"
+
+  # Frontend: Build and upload to S3
+  frontend-deploy:
+    name: Build & Deploy Frontend
+    needs: detect-changes
+    if: needs.detect-changes.outputs.frontend == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Build frontend
+        working-directory: frontend
+        run: npm run build
+        env:
+          # Frontend build-time environment variables (if needed)
+          NODE_ENV: production
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Sync to S3 (excluding .env files)
+        working-directory: frontend
+        run: |
+          # Sync dist folder to S3, excluding .env files
+          # Using --size-only to avoid unnecessary uploads
+          # Using --delete would remove files - we explicitly avoid this
+          aws s3 sync dist/ s3://${{ secrets.S3_BUCKET_NAME }}/ \
+            --exclude "*.env*" \
+            --exclude ".env*" \
+            --exclude "env.*" \
+            --size-only \
+            --cache-control "public, max-age=31536000, immutable" \
+            --metadata-directive REPLACE
+
+          # Set shorter cache for HTML files (they should be re-validated)
+          aws s3 cp dist/index.html s3://${{ secrets.S3_BUCKET_NAME }}/index.html \
+            --cache-control "public, max-age=0, must-revalidate" \
+            --metadata-directive REPLACE
+
+      - name: Invalidate CloudFront cache (if configured)
+        if: vars.CLOUDFRONT_DISTRIBUTION_ID != ''
+        run: |
+          aws cloudfront create-invalidation \
+            --distribution-id ${{ vars.CLOUDFRONT_DISTRIBUTION_ID }} \
+            --paths "/*"
+
+  # Summary job
+  deploy-summary:
+    name: Deployment Summary
+    needs: [detect-changes, backend-deploy, frontend-deploy]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Generate summary
+        run: |
+          echo "# Deployment Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Branch:** ${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Commit:** ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          if [ "${{ needs.detect-changes.outputs.backend }}" == "true" ]; then
+            echo "## Backend Services Deployed" >> $GITHUB_STEP_SUMMARY
+            echo '${{ needs.detect-changes.outputs.backend-services }}' | jq -r '.[]' | while read service; do
+              echo "- ✅ $service" >> $GITHUB_STEP_SUMMARY
+            done
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "**Status:** ${{ needs.backend-deploy.result }}" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "## Backend: No Changes" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          if [ "${{ needs.detect-changes.outputs.frontend }}" == "true" ]; then
+            echo "## Frontend Deployed" >> $GITHUB_STEP_SUMMARY
+            echo "- ✅ Uploaded to S3: s3://${{ secrets.S3_BUCKET_NAME }}" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "**Status:** ${{ needs.frontend-deploy.result }}" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "## Frontend: No Changes" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          echo "---" >> $GITHUB_STEP_SUMMARY
+          echo "**Note:** Kubernetes pod rollout is manual. Use \`kubectl rollout restart\` when ready." >> $GITHUB_STEP_SUMMARY
