@@ -2,9 +2,19 @@
 
 A real-time auction platform built with microservices architecture, deployed on AWS EKS.
 
+## 👥 Team Members
+- Tejaswini PRadip Srivastava
+- Komal Bagwe
+- Frank Wang
+- Shwetanshu Raj
+
 ## 📋 Overview
 
 This project implements a live flash auction system with real-time bidding, countdown timers, anti-sniping logic, and automated notifications. The backend is fully deployed on AWS EKS, and the frontend is ready for deployment.
+
+## Demo & Presentation
+- [Youtbe Video](https://www.youtube.com/watch?v=yf7C636RsY4)
+- [Presentation](https://docs.google.com/presentation/d/1boE4evdzk-UhxoZZ3doOs1HZDF_qqqV7Cd1rvZ-Ieks/edit?usp=sharing)
 
 ## 🏗️ Architecture
 
@@ -33,39 +43,60 @@ This project implements a live flash auction system with real-time bidding, coun
 - Node.js 18+ installed
 
 ### Key Documentation
-1. **[PROJECT_STATUS.md](./PROJECT_STATUS.md)** - Complete project overview and current status
-2. **[HANDOVER.md](./HANDOVER.md)** - Deployment and troubleshooting guide
-3. **[ENTIRE_PHASE_GUIDELINES.md](./ENTIRE_PHASE_GUIDELINES.md)** - Step-by-step AWS setup guide
-4. **[backend/README.md](./backend/README.md)** - Backend architecture and setup
-5. **[frontend/README.md](./frontend/README.md)** - Frontend setup instructions
+1. **[ENTIRE_PHASE_GUIDELINES.md](./ENTIRE_PHASE_GUIDELINES.md)** - Step-by-step AWS setup guide
+2. **[backend/README.md](./backend/README.md)** - Backend architecture and setup
+3. **[frontend/README.md](./frontend/README.md)** - Frontend setup instructions
 
-## 🔧 Current Status
+## 📁 Project Structure
 
-### ✅ Completed
-- Backend infrastructure fully deployed on EKS
-- All 4 microservices running and operational
-- Services exposed via ALB Ingress
-- AWS resources verified and operational
-- User authentication working end-to-end
-- Auction creation and management functional
-- Timer service properly handles auction expiration
-- Email notifications working for auction closures
+```
+live-flash-auction/
+├── backend/                    # Backend microservices
+│   ├── auction-management-service/
+│   ├── bid-processing-service/
+│   ├── websocket-service/
+│   ├── timer-service/
+│   ├── shared/                 # Shared code and utilities
+│   ├── lambdas/                # Lambda functions
+│   └── k8s/                     # Kubernetes manifests
+├── frontend/                    # React + TypeScript frontend
+├── infra/                       # Infrastructure as code
+├── scripts/                     # Deployment and utility scripts
+└── README.md                   # This file
+```
 
-### ⚠️ In Progress
-- Frontend bug fixes (auction listing, bidding features)
-- End-to-end testing
+## Quick start (local dev)
 
-### ⏸️ Pending
-- Frontend deployment to S3/CloudFront (deferred until bug fixes)
+> Exact commands can differ depending on your environment. Use the component READMEs as the source of truth.
+
+1) Clone
+```bash
+git clone https://github.com/Tj-Github30/live-flash-auction
+cd live-flash-auction
+```
+
+2) Backend
+
+Follow backend/README.md
+
+3) Frontend
+
+Follow frontend/README.md
+
+Frontend environment variables
+
+Create frontend/.env:
+```bash
+VITE_API_BASE_URL=<ALB_URL_OR_LOCAL_API_BASE>
+VITE_COGNITO_CLIENT_ID=<your-client-id>
+VITE_COGNITO_REGION=us-east-1
+```
 
 ## 🔄 Deployment
 
-### Redeploy Services
+Start here: ENTIRE_PHASE_GUIDELINES.md
 
-**Timer Service** (⚠️ Required after recent fixes):
-```bash
-./redeploy-timer-service.sh
-```
+### Redeploy Services
 
 **All Services**:
 ```bash
@@ -82,18 +113,6 @@ This project implements a live flash auction system with real-time bidding, coun
 ./verify-aws-resources.sh
 ```
 
-## 🐛 Recent Fixes (December 18, 2025)
-
-### Critical Bug Fixes
-1. **Auction Auto-Closing Issue**: Fixed timer service incorrectly calculating `end_time` from database instead of Redis state
-2. **Notification Bug**: Fixed `AttributeError` preventing email notifications when auctions expired
-3. **State Endpoint**: Fixed 500 errors in auction state endpoint with proper error handling
-4. **Notification Logic**: Improved to send emails to all participants even with no bids
-
-**Action Required**: Redeploy timer service to apply fixes:
-```bash
-./redeploy-timer-service.sh
-```
 
 ## 📊 Monitoring & Logs
 
@@ -138,25 +157,7 @@ aws logs tail /aws/lambda/bid-persistence-lambda --since 30m
 3. Verify SQS queue: `aws sqs get-queue-attributes --queue-url <QUEUE_URL>`
 4. Verify SES email configuration
 
-## 📁 Project Structure
 
-```
-live-flash-auction/
-├── backend/                    # Backend microservices
-│   ├── auction-management-service/
-│   ├── bid-processing-service/
-│   ├── websocket-service/
-│   ├── timer-service/
-│   ├── shared/                 # Shared code and utilities
-│   ├── lambdas/                # Lambda functions
-│   └── k8s/                     # Kubernetes manifests
-├── frontend/                    # React + TypeScript frontend
-├── infra/                       # Infrastructure as code
-├── scripts/                     # Deployment and utility scripts
-├── PROJECT_STATUS.md           # Project status and progress
-├── HANDOVER.md                 # Deployment guide
-└── README.md                   # This file
-```
 
 ## 🔐 Environment Variables
 
@@ -174,20 +175,15 @@ VITE_COGNITO_REGION=us-east-1
 ## 📞 Support
 
 For questions about:
-- **Architecture**: See `PROJECT_STATUS.md`
 - **AWS Setup**: See `ENTIRE_PHASE_GUIDELINES.md`
 - **Backend Code**: See `backend/README.md`
 - **Frontend Code**: See `frontend/README.md`
-- **Deployment**: See `HANDOVER.md`
 
 ## 📝 License
 
 This project is part of a Cloud Computing course assignment.
 
 ---
-
-**Last Updated**: December 18, 2025  
-**Status**: Backend Production Ready, Frontend Pending Deployment
 
 
 
