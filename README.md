@@ -2,11 +2,19 @@
 
 A real-time auction platform built with microservices architecture, deployed on AWS EKS.
 
-## 👥 Team Members
-- Tejaswini PRadip Srivastava
-- Komal Bagwe
-- Frank Wang
-- Shwetanshu Raj
+## 👥 Team Members & Contribution
+| Functionality | [Tejaswini](https://github.com/Tj-Github30)  | [Komal](https://github.com/komal-b) | [Frank](https://github.com/frank2002) | [Shwetanshu](https://github.com/shwetanshu07) |
+| :--- | :---: | :---: | :---: | :---: |
+| **Real-Time Bidding Mechanism** |✔|✔||✔|
+| **Dynamic Timer Countdown** |||✔|✔|
+| **Auction Infrastructure Spin-up** |✔|✔||✔|
+| **Leaderboard** |✔||✔||
+| **Notifications** ||✔|✔||
+| **Sniping Prevention & Rate Limiting** |✔||✔||
+| **API Configuration** || ✔ | ✔ |✔|
+| **Frontend (UI)** | ✔ | ✔ ||✔|
+| **Backend & Deployment (Devops)** | ✔ | ✔ | ✔ | |
+
 
 ## 📋 Overview
 
